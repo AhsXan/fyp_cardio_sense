@@ -92,3 +92,5 @@ instance/
 *.pem
 *.key
 secrets/
+
+uploads/
