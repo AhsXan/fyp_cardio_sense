@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../contexts/AuthContext'
 import Navbar from '../../components/Navbar'
 import Input from '../../components/Input'
 import Button from '../../components/Button'
@@ -9,6 +10,7 @@ import { getValidationErrors } from '../../utils/validation'
 
 function DoctorSignup() {
   const navigate = useNavigate()
+  const { logout, isAuthenticated } = useAuth()
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -21,29 +23,23 @@ function DoctorSignup() {
     affiliation: '',
     clinic_address: '',
   })
-  const [certificateFile, setCertificateFile] = useState(null)
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
   const [showOTP, setShowOTP] = useState(false)
   const [userId, setUserId] = useState(null)
+
+  // Auto-logout if user is already authenticated and visits signup page
+  useEffect(() => {
+    if (isAuthenticated) {
+      logout()
+    }
+  }, [])
 
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: null }))
-    }
-  }
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setErrors(prev => ({ ...prev, certificate: 'File size must be less than 5MB' }))
-        return
-      }
-      setCertificateFile(file)
-      setErrors(prev => ({ ...prev, certificate: null }))
     }
   }
 
@@ -81,16 +77,31 @@ function DoctorSignup() {
           formDataToSend.append(key, formData[key])
         }
       })
-      if (certificateFile) {
-        formDataToSend.append('certificate', certificateFile)
-      }
 
       const response = await authAPI.signup('doctor', formDataToSend)
       setUserId(response.data.user_id)
       await authAPI.sendSignupOTP(formData.email)
       setShowOTP(true)
     } catch (error) {
-      setErrors({ submit: error.response?.data?.message || 'Signup failed. Please try again.' })
+      console.error('Signup error:', error.response?.data)
+      let errorMessage = 'Signup failed. Please try again.'
+      
+      if (error.response?.data?.detail) {
+        // Handle FastAPI validation errors
+        if (Array.isArray(error.response.data.detail)) {
+          // Validation errors from FastAPI are arrays
+          errorMessage = error.response.data.detail.map(err => {
+            const field = err.loc ? err.loc[err.loc.length - 1] : 'field'
+            return `${field}: ${err.msg}`
+          }).join(', ')
+        } else if (typeof error.response.data.detail === 'string') {
+          errorMessage = error.response.data.detail
+        }
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message
+      }
+      
+      setErrors({ submit: errorMessage })
     } finally {
       setLoading(false)
     }
@@ -226,22 +237,6 @@ function DoctorSignup() {
                 value={formData.clinic_address}
                 onChange={handleChange}
               />
-              
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Upload Certificate
-                </label>
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={handleFileChange}
-                  className="input-field"
-                />
-                {errors.certificate && <p className="mt-1 text-sm text-red-600">{errors.certificate}</p>}
-                {certificateFile && (
-                  <p className="mt-1 text-sm text-gray-600">Selected: {certificateFile.name}</p>
-                )}
-              </div>
 
               {errors.submit && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">

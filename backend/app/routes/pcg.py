@@ -1,21 +1,36 @@
-"""
-PCG Routes
-Handles PCG audio file uploads, status, and results
-NOTE: ML analysis is NOT implemented - will be integrated later
+"""PCG Routes
+Handles PCG audio file uploads, status, and results with AI analysis
 """
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
+import time
+import os
 
 from app.database import get_db
 from app.models.user import User
 from app.models.pcg_upload import PCGUpload, UploadStatus
-from app.models.analysis_result import AnalysisResult
+from app.models.analysis_result import AnalysisResult, ClassificationResult
 from app.services.file_service import FileService
 from app.utils.security import get_current_user
 
 router = APIRouter(prefix="/pcg", tags=["PCG"])
+
+
+def run_ai_analysis(file_path: str):
+    """
+    Run AI analysis on an uploaded PCG file
+    Returns classification result with confidence scores
+    """
+    try:
+        from app.services.ai_service import get_classifier
+        classifier = get_classifier()
+        result = classifier.predict(file_path)
+        return result
+    except Exception as e:
+        print(f"❌ AI Analysis failed: {str(e)}")
+        return None
 
 
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
@@ -27,16 +42,29 @@ async def upload_pcg(
     db: Session = Depends(get_db)
 ):
     """
-    Upload a PCG audio file for analysis
-    Supports: WAV, MP3, M4A, FLAC (max 10MB)
+    Upload a PCG audio file for AI analysis.
+    The file is automatically analyzed using the heart sound classification model.
+    Supports: WAV, MP3, M4A, FLAC (max 10 MB)
     """
+    print(f"\n📥 Upload Request Received")
+    print(f"   File: {file.filename if file else 'None'}")
+    print(f"   User: {current_user.email}")
+    print(f"   Device: {device}")
+    
     # Validate file
-    is_valid, error_message = FileService.validate_audio_file(file)
-    if not is_valid:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=error_message
-        )
+    try:
+        is_valid, error_message = FileService.validate_audio_file(file)
+        if not is_valid:
+            print(f"   ❌ Validation failed: {error_message}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_message
+            )
+    except Exception as e:
+        print(f"   ❌ Validation error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
     
     # Save file
     try:
@@ -69,7 +97,7 @@ async def upload_pcg(
         file_format=FileService.get_file_extension(file.filename),
         device=device,
         recording_time=recording_datetime,
-        status=UploadStatus.QUEUED
+        status=UploadStatus.PROCESSING  # Start as processing
     )
     
     db.add(pcg_upload)
@@ -79,12 +107,75 @@ async def upload_pcg(
     print(f"\n📁 PCG Upload: {file.filename}")
     print(f"   User: {current_user.email}")
     print(f"   Upload ID: {pcg_upload.id}")
-    print(f"   Status: QUEUED (awaiting ML processing)")
+    print(f"   Status: PROCESSING (running AI analysis)")
+    
+    # ============== RUN AI ANALYSIS ==============
+    start_time = time.time()
+    ai_result = None
+    
+    # Get absolute path to the uploaded file
+    uploads_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    abs_file_path = os.path.join(uploads_dir, "uploads", file_path.replace("/uploads/", "").replace("uploads/", ""))
+    
+    # Also try alternative path structures
+    if not os.path.exists(abs_file_path):
+        abs_file_path = os.path.join(uploads_dir, file_path.lstrip("/"))
+    if not os.path.exists(abs_file_path):
+        abs_file_path = file_path
+    
+    print(f"   File path for AI: {abs_file_path}")
+    
+    # Check if file exists and is a WAV file for AI analysis
+    if os.path.exists(abs_file_path) and file.filename.lower().endswith('.wav'):
+        try:
+            ai_result = run_ai_analysis(abs_file_path)
+            if ai_result:
+                print(f"   🤖 AI Result: {ai_result['label']} ({ai_result['confidence']}%)")
+        except Exception as e:
+            print(f"   ⚠️ AI Analysis error: {str(e)}")
+    else:
+        print(f"   ⚠️ File not found or not WAV format, skipping AI analysis")
+    
+    processing_time = time.time() - start_time
+    
+    # Create analysis result record
+    if ai_result:
+        analysis_result = AnalysisResult(
+            upload_id=pcg_upload.id,
+            classification=ClassificationResult.NORMAL if ai_result['label'] == 'NORMAL' else ClassificationResult.ABNORMAL,
+            classification_confidence=ai_result['confidence'],
+            probability_normal=ai_result['probabilities']['normal'],
+            probability_abnormal=ai_result['probabilities']['abnormal'],
+            average_confidence=ai_result['confidence'],
+            model_version="hybrid_cnn_lstm_v1.0",
+            processing_time_seconds=processing_time
+        )
+        pcg_upload.status = UploadStatus.COMPLETED
+        print(f"   ✅ Analysis completed in {processing_time:.2f}s")
+    else:
+        # If AI analysis failed, still create a pending result
+        analysis_result = AnalysisResult(
+            upload_id=pcg_upload.id,
+            classification=ClassificationResult.PENDING,
+            model_version="pending",
+            processing_time_seconds=processing_time
+        )
+        pcg_upload.status = UploadStatus.COMPLETED  # Still mark as completed
+        print(f"   ⚠️ AI analysis pending/failed")
+    
+    pcg_upload.progress = 100
+    pcg_upload.processed_at = datetime.utcnow()
+    
+    db.add(analysis_result)
+    db.commit()
+    db.refresh(analysis_result)
     
     return {
         "upload_id": pcg_upload.id,
-        "status": "queued",
-        "message": "File uploaded successfully. Analysis will begin shortly."
+        "status": "completed",
+        "message": "File uploaded and analyzed successfully." if ai_result else "File uploaded. AI analysis pending.",
+        "classification": ai_result['label'] if ai_result else None,
+        "confidence": ai_result['confidence'] if ai_result else None
     }
 
 
@@ -121,17 +212,39 @@ async def get_upload_results(
     db: Session = Depends(get_db)
 ):
     """
-    Get analysis results for an upload
+    Get analysis results for an upload including AI classification
+    Accessible by patient (owner) or their assigned doctor
     """
     upload = db.query(PCGUpload).filter(
-        PCGUpload.id == upload_id,
-        PCGUpload.user_id == current_user.id
+        PCGUpload.id == upload_id
     ).first()
     
     if not upload:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Upload not found"
+        )
+    
+    # Check access: must be owner OR assigned doctor
+    has_access = False
+    if upload.user_id == current_user.id:
+        # Patient owns this upload
+        has_access = True
+    elif current_user.role.value == 'doctor':
+        # Check if doctor is assigned to patient
+        from app.models.doctor_patient import DoctorPatient, AssignmentStatus
+        assignment = db.query(DoctorPatient).filter(
+            DoctorPatient.doctor_id == current_user.id,
+            DoctorPatient.patient_id == upload.user_id,
+            DoctorPatient.status == AssignmentStatus.ACTIVE
+        ).first()
+        if assignment:
+            has_access = True
+    
+    if not has_access:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to view this upload"
         )
     
     if upload.status != UploadStatus.COMPLETED:
@@ -150,11 +263,18 @@ async def get_upload_results(
         return {
             "upload_id": upload_id,
             "status": "completed",
-            "results": [],
-            "message": "No results available (ML not integrated)"
+            "classification": None,
+            "message": "No results available"
         }
     
-    return result.to_dict()
+    # Return comprehensive results
+    response = result.to_dict()
+    response["filename"] = upload.original_filename
+    response["file_format"] = upload.file_format
+    response["device"] = upload.device
+    response["uploaded_at"] = upload.created_at.isoformat() if upload.created_at else None
+    
+    return response
 
 
 @router.get("/uploads")
@@ -163,23 +283,37 @@ async def get_user_uploads(
     db: Session = Depends(get_db)
 ):
     """
-    Get list of user's PCG uploads
+    Get list of user's PCG uploads with AI classification results
     """
     uploads = db.query(PCGUpload).filter(
         PCGUpload.user_id == current_user.id
     ).order_by(PCGUpload.created_at.desc()).all()
     
+    result_list = []
+    for u in uploads:
+        # Get analysis result for each upload
+        analysis = db.query(AnalysisResult).filter(
+            AnalysisResult.upload_id == u.id
+        ).first()
+        
+        upload_data = {
+            "id": u.id,
+            "filename": u.original_filename,
+            "status": u.status.value,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+            "device": u.device,
+            "classification": None,
+            "confidence": None
+        }
+        
+        if analysis and analysis.classification:
+            upload_data["classification"] = analysis.classification.value
+            upload_data["confidence"] = analysis.classification_confidence
+        
+        result_list.append(upload_data)
+    
     return {
-        "uploads": [
-            {
-                "id": u.id,
-                "filename": u.original_filename,
-                "status": u.status.value,
-                "created_at": u.created_at.isoformat() if u.created_at else None,
-                "device": u.device
-            }
-            for u in uploads
-        ],
+        "uploads": result_list,
         "total": len(uploads)
     }
 

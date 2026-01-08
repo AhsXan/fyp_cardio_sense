@@ -11,6 +11,8 @@ import PatientDashboard from './pages/dashboards/PatientDashboard'
 import DoctorDashboard from './pages/dashboards/DoctorDashboard'
 import ResearcherDashboard from './pages/dashboards/ResearcherDashboard'
 import AdminDashboard from './pages/dashboards/AdminDashboard'
+import ManageUsers from './pages/dashboards/ManageUsers'
+import SystemStats from './pages/dashboards/SystemStats'
 import UploadPage from './pages/UploadPage'
 import ResultsPage from './pages/ResultsPage'
 import ProfilePage from './pages/ProfilePage'
@@ -54,6 +56,30 @@ function App() {
           element={
             <ProtectedRoute requiredRole="admin">
               <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin-dashboard"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/manage-users"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <ManageUsers />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/system-stats"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <SystemStats />
             </ProtectedRoute>
           }
         />

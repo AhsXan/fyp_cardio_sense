@@ -11,7 +11,7 @@ import { getValidationErrors } from '../utils/validation'
 function Login() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { login } = useAuth()
+  const { login, logout, isAuthenticated } = useAuth()
   
   const [formData, setFormData] = useState({
     email: '',
@@ -22,6 +22,13 @@ function Login() {
   const [showOTP, setShowOTP] = useState(false)
   const [tempToken, setTempToken] = useState(null)
   const [message, setMessage] = useState(null)
+
+  // Auto-logout if user is already authenticated and visits login page
+  useEffect(() => {
+    if (isAuthenticated) {
+      logout()
+    }
+  }, [])
 
   useEffect(() => {
     if (location.state?.message) {
@@ -69,7 +76,8 @@ function Login() {
         navigate(`/dashboard/${response.data.user.role}`)
       }
     } catch (error) {
-      setErrors({ submit: error.response?.data?.message || 'Login failed. Please check your credentials.' })
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || 'Login failed. Please check your credentials.'
+      setErrors({ submit: errorMessage })
     } finally {
       setLoading(false)
     }

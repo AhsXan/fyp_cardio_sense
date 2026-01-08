@@ -5,6 +5,7 @@ FastAPI application with all routes and middleware
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 import os
@@ -27,6 +28,7 @@ from app.routes.pcg import router as pcg_router
 from app.routes.admin import router as admin_router
 from app.routes.doctor import router as doctor_router
 from app.routes.researcher import router as researcher_router
+from app.routes.ai_test import router as ai_test_router
 
 
 @asynccontextmanager
@@ -101,9 +103,11 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:3001",
+        "http://localhost:3002",
         "http://localhost:5173",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
+        "http://127.0.0.1:3002",
         "http://127.0.0.1:5173",
     ],
     allow_credentials=True,
@@ -115,7 +119,11 @@ app.add_middleware(
 # Global exception handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    print(f"\n❌ Unhandled Error: {str(exc)}")
+    import traceback
+    print(f"\n❌ Unhandled Error on {request.method} {request.url.path}")
+    print(f"   Error: {str(exc)}")
+    print(f"   Type: {type(exc).__name__}")
+    traceback.print_exc()
     return JSONResponse(
         status_code=500,
         content={"message": "Internal server error", "detail": str(exc)}
@@ -129,6 +137,13 @@ app.include_router(pcg_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(doctor_router, prefix="/api")
 app.include_router(researcher_router, prefix="/api")
+app.include_router(ai_test_router, prefix="/api")
+
+# Mount uploads directory for serving uploaded files
+uploads_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
+if not os.path.exists(uploads_dir):
+    os.makedirs(uploads_dir)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 
 # Root endpoint
@@ -165,7 +180,8 @@ def api_info():
             "pcg": "/api/pcg/*",
             "admin": "/api/admin/*",
             "doctor": "/api/doctor/*",
-            "researcher": "/api/researcher/*"
+            "researcher": "/api/researcher/*",
+            "ai_test": "/api/ai/*"
         }
     }
 

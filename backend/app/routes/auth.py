@@ -75,7 +75,7 @@ async def signup(
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+            detail="User with this email already exists. Please login or use a different email."
         )
     
     # Create user
@@ -210,9 +210,21 @@ async def login(
         )
     
     if user.status == UserStatus.PENDING:
+        # Check if email is verified
+        if not user.email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Please verify your email first. Check your email for OTP."
+            )
+        # Email verified but account pending admin approval (doctor/researcher)
+        if user.role in [UserRole.DOCTOR, UserRole.RESEARCHER]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Your {user.role.value} account is pending admin approval. Please try again later."
+            )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Please verify your email first"
+            detail="Your account is pending verification."
         )
     
     if user.status == UserStatus.SUSPENDED:
@@ -224,7 +236,7 @@ async def login(
     if user.status == UserStatus.REJECTED:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account registration was rejected"
+            detail=f"Your {user.role.value} registration has been rejected by admin. Please contact support for more information."
         )
     
     # Check if 2FA is enabled

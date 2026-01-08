@@ -1,9 +1,19 @@
 import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
+import { useAuth } from '../contexts/AuthContext'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import Button from '../components/Button'
 
 function RoleSelection() {
+  const { logout, isAuthenticated } = useAuth()
+
+  // Auto-logout if user is already authenticated and visits signup page
+  useEffect(() => {
+    if (isAuthenticated) {
+      logout()
+    }
+  }, [])
   const roles = [
     {
       id: 'patient',

@@ -20,8 +20,8 @@ function ResultsPage() {
     try {
       const response = await pcgAPI.getResults(uploadId)
       setResults(response.data)
-      if (response.data.comments) {
-        setComments(response.data.comments)
+      if (response.data.doctor_comments) {
+        setComments(response.data.doctor_comments)
       }
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to load results')
@@ -39,8 +39,20 @@ function ResultsPage() {
   }
 
   const handleSaveComments = () => {
-    // Mock save comments
     alert('Comments saved successfully!')
+  }
+
+  // Helper to get classification color
+  const getClassificationColor = (classification) => {
+    if (classification === 'NORMAL') return 'text-green-600'
+    if (classification === 'ABNORMAL') return 'text-red-600'
+    return 'text-gray-600'
+  }
+
+  const getClassificationBg = (classification) => {
+    if (classification === 'NORMAL') return 'from-green-50 to-green-100 border-green-300'
+    if (classification === 'ABNORMAL') return 'from-red-50 to-red-100 border-red-300'
+    return 'from-gray-50 to-gray-100 border-gray-300'
   }
 
   if (loading) {
@@ -88,8 +100,119 @@ function ResultsPage() {
 
         <div className="mb-4 sm:mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Analysis Results</h1>
-          <p className="text-gray-600 mt-2 text-sm sm:text-base">Upload ID: {uploadId}</p>
+          <p className="text-gray-600 mt-2 text-sm sm:text-base">
+            {results?.filename || `Upload ID: ${uploadId}`}
+          </p>
         </div>
+
+        {/* ============== AI CLASSIFICATION RESULT ============== */}
+        {results?.classification && (
+          <div className={`card mb-6 bg-gradient-to-br ${getClassificationBg(results.classification)} border-2`}>
+            <div className="text-center py-6">
+              <div className="text-6xl mb-4">
+                {results.classification === 'NORMAL' ? '❤️' : '⚠️'}
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-bold mb-2">
+                <span className={getClassificationColor(results.classification)}>
+                  {results.classification}
+                </span>
+              </h2>
+              <p className="text-lg text-gray-700 mb-4">Heart Sound Classification</p>
+              
+              {/* Confidence Score */}
+              <div className="max-w-md mx-auto">
+                <div className="flex justify-between text-sm text-gray-600 mb-2">
+                  <span>Confidence</span>
+                  <span className="font-bold">{results.classification_confidence?.toFixed(1)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-4">
+                  <div
+                    className={`h-4 rounded-full transition-all duration-500 ${
+                      results.classification === 'NORMAL' ? 'bg-green-500' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${results.classification_confidence || 0}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Probability Breakdown */}
+              <div className="mt-6 grid grid-cols-2 gap-4 max-w-md mx-auto">
+                <div className="bg-white/50 rounded-lg p-4">
+                  <p className="text-sm text-gray-600">Normal</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {results.probability_normal?.toFixed(1)}%
+                  </p>
+                </div>
+                <div className="bg-white/50 rounded-lg p-4">
+                  <p className="text-sm text-gray-600">Abnormal</p>
+                  <p className="text-2xl font-bold text-red-600">
+                    {results.probability_abnormal?.toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Processing Info */}
+        {results?.processing_time_seconds && (
+          <div className="card mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+              <div>
+                <p className="text-sm text-gray-500">Model Version</p>
+                <p className="font-semibold">{results.model_version || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Processing Time</p>
+                <p className="font-semibold">{results.processing_time_seconds?.toFixed(2)}s</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Analyzed At</p>
+                <p className="font-semibold">
+                  {results.created_at ? new Date(results.created_at).toLocaleDateString() : 'N/A'}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Device</p>
+                <p className="font-semibold">{results.device || 'Not specified'}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Doctor's Review Section */}
+        {results?.doctor_reviewed && (
+          <div className="card mb-6 border-2 border-blue-200 bg-blue-50">
+            <h3 className="text-lg font-semibold mb-3 text-blue-900">
+              🥺 Doctor's Review
+            </h3>
+            <div className="space-y-2">
+              {results.doctor_agrees_with_ai !== null && (
+                <p>
+                  <span className="text-gray-600">Doctor's Assessment: </span>
+                  <span className={`font-semibold ${
+                    results.doctor_agrees_with_ai ? 'text-green-600' : 'text-orange-600'
+                  }`}>
+                    {results.doctor_agrees_with_ai ? 'Agrees with AI' : 'Disagrees with AI'}
+                  </span>
+                </p>
+              )}
+              {results.doctor_classification && (
+                <p>
+                  <span className="text-gray-600">Doctor's Classification: </span>
+                  <span className={`font-bold ${getClassificationColor(results.doctor_classification)}`}>
+                    {results.doctor_classification}
+                  </span>
+                </p>
+              )}
+              {results.doctor_comments && (
+                <div className="mt-3 p-3 bg-white rounded-lg">
+                  <p className="text-gray-700">{results.doctor_comments}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Waveform Visualization */}
         <div className="card mb-4 sm:mb-6">
@@ -106,105 +229,9 @@ function ResultsPage() {
                 <svg className="mx-auto h-16 w-16 sm:h-20 sm:w-20 md:h-24 md:w-24 mb-3 sm:mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
-                <p className="text-sm sm:text-base">Waveform visualization will appear here</p>
-                <p className="text-xs sm:text-sm mt-2">Timeline markers for S1 and S2 will be displayed</p>
+                <p className="text-sm sm:text-base">Waveform visualization coming soon</p>
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Results Table */}
-        <div className="card mb-4 sm:mb-6">
-          <h2 className="text-lg sm:text-xl font-semibold mb-4">Analysis Results</h2>
-          
-          {/* Mobile Card View */}
-          <div className="block md:hidden space-y-3">
-            {results?.results && results.results.length > 0 ? (
-              results.results.map((result, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="font-medium text-gray-900">{result.label}</span>
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                      result.confidence >= 0.8
-                        ? 'bg-green-100 text-green-800'
-                        : result.confidence >= 0.6
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {(result.confidence * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="text-gray-500">Start:</span>
-                      <span className="ml-1 text-gray-900">{result.start_time}s</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">End:</span>
-                      <span className="ml-1 text-gray-900">{result.end_time}s</span>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-center text-gray-500 py-4">No results available</p>
-            )}
-          </div>
-          
-          {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Label
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Start Time (s)
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    End Time (s)
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Confidence
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {results?.results && results.results.length > 0 ? (
-                  results.results.map((result, index) => (
-                    <tr key={index}>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {result.label}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {result.start_time}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {result.end_time}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm">
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          result.confidence >= 0.8
-                            ? 'bg-green-100 text-green-800'
-                            : result.confidence >= 0.6
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {(result.confidence * 100).toFixed(1)}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="4" className="px-4 py-4 text-center text-gray-500">
-                      No results available
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
           </div>
         </div>
 

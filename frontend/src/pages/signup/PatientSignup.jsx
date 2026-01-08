@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../contexts/AuthContext'
 import Navbar from '../../components/Navbar'
 import Input from '../../components/Input'
 import Button from '../../components/Button'
@@ -9,6 +10,7 @@ import { getValidationErrors } from '../../utils/validation'
 
 function PatientSignup() {
   const navigate = useNavigate()
+  const { logout, isAuthenticated } = useAuth()
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -22,6 +24,13 @@ function PatientSignup() {
   const [loading, setLoading] = useState(false)
   const [showOTP, setShowOTP] = useState(false)
   const [userId, setUserId] = useState(null)
+
+  // Auto-logout if user is already authenticated and visits signup page
+  useEffect(() => {
+    if (isAuthenticated) {
+      logout()
+    }
+  }, [])
 
   const handleChange = (e) => {
     const { name, value } = e.target
