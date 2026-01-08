@@ -34,10 +34,23 @@ async def get_admin_stats(
     """
     today = datetime.utcnow().date()
     
-    total_users = db.query(User).filter(User.role != UserRole.ADMIN).count()
-    total_patients = db.query(User).filter(User.role == UserRole.PATIENT).count()
-    total_doctors = db.query(User).filter(User.role == UserRole.DOCTOR).count()
-    total_researchers = db.query(User).filter(User.role == UserRole.RESEARCHER).count()
+    # Exclude rejected users from counts
+    total_users = db.query(User).filter(
+        User.role != UserRole.ADMIN,
+        User.status != UserStatus.REJECTED
+    ).count()
+    total_patients = db.query(User).filter(
+        User.role == UserRole.PATIENT,
+        User.status != UserStatus.REJECTED
+    ).count()
+    total_doctors = db.query(User).filter(
+        User.role == UserRole.DOCTOR,
+        User.status != UserStatus.REJECTED
+    ).count()
+    total_researchers = db.query(User).filter(
+        User.role == UserRole.RESEARCHER,
+        User.status != UserStatus.REJECTED
+    ).count()
     pending_verifications = db.query(User).filter(User.status == UserStatus.PENDING).count()
     total_uploads = db.query(PCGUpload).count()
     uploads_today = db.query(PCGUpload).filter(
@@ -235,6 +248,61 @@ async def get_pending_approvals(
     ]
     
     return AdminPendingListResponse(approvals=approvals, total=len(approvals))
+
+
+@router.get("/recent-activity")
+async def get_recent_activity(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+    limit: int = Query(20, ge=1, le=100)
+):
+    """
+    Get recent activity logs from the system
+    """
+    from sqlalchemy import desc, union_all, select, literal
+    
+    activities = []
+    
+    # Recent user signups (last 7 days)
+    recent_signups = db.query(User).filter(
+        User.created_at >= datetime.utcnow() - timedelta(days=7)
+    ).order_by(desc(User.created_at)).limit(limit).all()
+    
+    for user in recent_signups:
+        activities.append({
+            'type': 'user_signup',
+            'title': 'New user registration',
+            'description': f"{user.full_name} registered as a {user.role.value}",
+            'timestamp': user.created_at.isoformat() if user.created_at else None
+        })
+    
+    # Recent user approvals/rejections
+    recent_actions = db.query(User).filter(
+        User.status.in_([UserStatus.ACTIVE, UserStatus.REJECTED]),
+        User.role.in_([UserRole.DOCTOR, UserRole.RESEARCHER]),
+        User.updated_at >= datetime.utcnow() - timedelta(days=7)
+    ).order_by(desc(User.updated_at)).limit(limit).all()
+    
+    for user in recent_actions:
+        if user.status == UserStatus.ACTIVE:
+            activities.append({
+                'type': 'user_approved',
+                'title': 'Verification approved',
+                'description': f"{user.full_name}'s {user.role.value} credentials verified",
+                'timestamp': user.updated_at.isoformat() if user.updated_at else None
+            })
+        elif user.status == UserStatus.REJECTED:
+            activities.append({
+                'type': 'user_rejected',
+                'title': 'Verification rejected',
+                'description': f"{user.full_name}'s {user.role.value} application rejected",
+                'timestamp': user.updated_at.isoformat() if user.updated_at else None
+            })
+    
+    # Sort all activities by timestamp
+    activities.sort(key=lambda x: x['timestamp'] if x['timestamp'] else '', reverse=True)
+    
+    return {"activities": activities[:limit]}
 
 
 @router.post("/approve/{user_id}")

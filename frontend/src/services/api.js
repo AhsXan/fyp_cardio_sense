@@ -98,14 +98,35 @@ export const userAPI = {
 
 // Doctor endpoints
 export const doctorAPI = {
+  getDashboard: () => api.get('/doctor/dashboard'),
   getPatients: () => api.get('/doctor/patients'),
   getPendingApprovals: () => api.get('/doctor/pending-approvals'),
-  approvePatient: (patientId) => api.post(`/doctor/approve-patient/${patientId}`),
+  approvePatient: (patientId, uploadId) => api.post(`/doctor/approve-patient/${patientId}`, null, {
+    params: uploadId ? { upload_id: uploadId } : {}
+  }),
+  getPatientUploads: (patientId) => api.get(`/doctor/patient/${patientId}/uploads`),
+  getPatientResults: (patientId, uploadId) => api.get(`/doctor/patient/${patientId}/results/${uploadId}`),
+  reviewAnalysis: (uploadId, data) => api.post(`/doctor/review/${uploadId}`, data),
+  addComment: (uploadId, comment) => api.post(`/doctor/add-comment/${uploadId}`, { comment }),
 }
 
 // Researcher endpoints
 export const researcherAPI = {
   requestDatasetAccess: (datasetId) => api.post('/researcher/request-dataset-access', { dataset_id: datasetId }),
   getDatasets: () => api.get('/researcher/datasets'),
+}
+
+// Admin endpoints
+export const adminAPI = {
+  getStats: () => api.get('/admin/stats'),
+  getPendingApprovals: () => api.get('/admin/pending-approvals'),
+  approveUser: (userId) => api.post(`/admin/approve/${userId}`),
+  rejectUser: (userId, reason) => api.post(`/admin/reject/${userId}`, { reason }),
+  getUsers: (params) => api.get('/admin/users', { params }),
+  userAction: (userId, action) => api.post(`/admin/users/${userId}/action`, { action }),
+  getRecentActivity: () => api.get('/admin/recent-activity'),
+  testAIPrediction: (formData) => api.post('/ai/test-predict', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
 }
 
