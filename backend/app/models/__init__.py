@@ -7,6 +7,7 @@ from app.models.pcg_upload import PCGUpload
 from app.models.analysis_result import AnalysisResult
 from app.models.doctor_patient import DoctorPatient
 from app.models.dataset import Dataset, DatasetAccess
+from app.models.researcher_suggestion import ResearcherSuggestion
 
 __all__ = [
     "User",
@@ -15,5 +16,6 @@ __all__ = [
     "AnalysisResult",
     "DoctorPatient",
     "Dataset",
-    "DatasetAccess"
+    "DatasetAccess",
+    "ResearcherSuggestion"
 ]

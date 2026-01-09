@@ -25,7 +25,7 @@ function ResearcherSignup() {
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
   const [showOTP, setShowOTP] = useState(false)
-  const [userId, setUserId] = useState(null)
+  const [signupToken, setSignupToken] = useState(null)
 
   // Auto-logout if user is already authenticated and visits signup page
   useEffect(() => {
@@ -74,8 +74,8 @@ function ResearcherSignup() {
       })
 
       const response = await authAPI.signup('researcher', formDataToSend)
-      setUserId(response.data.user_id)
-      await authAPI.sendSignupOTP(formData.email)
+      // OTP is now sent automatically during signup
+      setSignupToken(response.data.signup_token)
       setShowOTP(true)
     } catch (error) {
       console.error('Signup error:', error.response?.data)
@@ -104,20 +104,18 @@ function ResearcherSignup() {
 
   const handleOTPVerify = async (otp) => {
     try {
-      await authAPI.verifySignupOTP(userId, otp)
+      await authAPI.verifySignupOTP(signupToken, otp)
       setShowOTP(false)
       navigate('/login', { state: { message: 'Account created successfully! Please log in.' } })
     } catch (error) {
-      alert(error.response?.data?.message || 'Invalid OTP. Please try again.')
+      alert(error.response?.data?.detail || 'Invalid OTP. Please try again.')
     }
   }
 
   const handleOTPResend = async () => {
-    try {
-      await authAPI.sendSignupOTP(formData.email)
-    } catch (error) {
-      alert('Failed to resend OTP. Please try again.')
-    }
+    // Resend not available - user needs to signup again if OTP expires
+    alert('OTP expired. Please sign up again.')
+    setShowOTP(false)
   }
 
   return (

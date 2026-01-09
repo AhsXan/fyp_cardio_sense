@@ -51,13 +51,6 @@ function PatientDashboard() {
       link: '/upload',
       color: 'bg-blue-500',
     },
-    {
-      title: 'View All Reports',
-      description: 'View your complete analysis history',
-      icon: '📊',
-      link: '/dashboard/patient',
-      color: 'bg-green-500',
-    },
   ]
 
   // Helper to format date
@@ -121,7 +114,7 @@ function PatientDashboard() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 mb-6 sm:mb-8">
           {quickActions.map((action, index) => (
             <Link
               key={index}
@@ -137,10 +130,10 @@ function PatientDashboard() {
           ))}
         </div>
 
-        {/* Recent Uploads */}
+        {/* Analysis History */}
         <div className="card mb-6 sm:mb-8">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg sm:text-xl font-semibold">Recent Uploads</h2>
+            <h2 className="text-lg sm:text-xl font-semibold">Analysis History</h2>
             <button onClick={fetchUploads} className="text-primary text-sm hover:underline">
               Refresh
             </button>
@@ -245,14 +238,7 @@ function PatientDashboard() {
           )}
         </div>
 
-        {/* Upload New Recording */}
-        <div className="text-center">
-          <Link to="/upload">
-            <Button variant="primary" className="text-base sm:text-lg px-6 sm:px-8 py-3">
-              🎤 Upload New Recording
-            </Button>
-          </Link>
-        </div>
+
       </div>
     </div>
   )

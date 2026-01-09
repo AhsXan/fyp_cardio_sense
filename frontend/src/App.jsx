@@ -6,6 +6,7 @@ import PatientSignup from './pages/signup/PatientSignup'
 import DoctorSignup from './pages/signup/DoctorSignup'
 import ResearcherSignup from './pages/signup/ResearcherSignup'
 import Login from './pages/Login'
+import ForgotPassword from './pages/ForgotPassword'
 import ProtectedRoute from './components/ProtectedRoute'
 import PatientDashboard from './pages/dashboards/PatientDashboard'
 import DoctorDashboard from './pages/dashboards/DoctorDashboard'
@@ -16,6 +17,8 @@ import SystemStats from './pages/dashboards/SystemStats'
 import UploadPage from './pages/UploadPage'
 import ResultsPage from './pages/ResultsPage'
 import ProfilePage from './pages/ProfilePage'
+import RequestDataset from './pages/researcher/RequestDataset'
+import ViewResults from './pages/researcher/ViewResults'
 
 function App() {
   return (
@@ -27,6 +30,7 @@ function App() {
         <Route path="/signup/doctor" element={<DoctorSignup />} />
         <Route path="/signup/researcher" element={<ResearcherSignup />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route
           path="/dashboard/patient"
           element={
@@ -48,6 +52,30 @@ function App() {
           element={
             <ProtectedRoute requiredRole="researcher">
               <ResearcherDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/researcher-dashboard"
+          element={
+            <ProtectedRoute requiredRole="researcher">
+              <ResearcherDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/researcher/request-dataset"
+          element={
+            <ProtectedRoute requiredRole="researcher">
+              <RequestDataset />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/researcher/view-results"
+          element={
+            <ProtectedRoute requiredRole="researcher">
+              <ViewResults />
             </ProtectedRoute>
           }
         />

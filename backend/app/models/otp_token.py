@@ -24,10 +24,10 @@ class OTPToken(Base):
     __tablename__ = "otp_tokens"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)  # Nullable for signup OTP
     otp_code = Column(String(10), nullable=False)
     token_type = Column(Enum(OTPType), nullable=False)
-    temp_token = Column(String(255), nullable=True)  # For 2FA login flow
+    temp_token = Column(String(255), nullable=True)  # For 2FA login flow or signup token
     created_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=False)
     used = Column(DateTime, nullable=True)  # When it was used (null if not used)

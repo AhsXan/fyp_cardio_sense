@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import Navbar from '../components/Navbar'
@@ -7,6 +7,7 @@ import Button from '../components/Button'
 
 function LandingPage() {
   const { logout, isAuthenticated } = useAuth()
+  const location = useLocation()
 
   // Auto-logout if user is already authenticated and visits landing page
   useEffect(() => {
@@ -14,6 +15,21 @@ function LandingPage() {
       logout()
     }
   }, [])
+
+  // Handle scroll to section when navigating from another page
+  useEffect(() => {
+    if (location.state?.scrollTo) {
+      const sectionId = location.state.scrollTo
+      const element = document.getElementById(sectionId)
+      if (element) {
+        // Use a short delay to ensure the page has rendered
+        const timeoutId = setTimeout(() => {
+          element.scrollIntoView({ behavior: 'smooth' })
+        }, 100)
+        return () => clearTimeout(timeoutId)
+      }
+    }
+  }, [location])
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar isPublic />
@@ -61,7 +77,7 @@ function LandingPage() {
       </section>
 
       {/* Diagnostic Capabilities */}
-      <section className="py-12 sm:py-16 md:py-20 bg-white">
+      <section id="capabilities" className="py-12 sm:py-16 md:py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10 sm:mb-12 md:mb-16">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-3 sm:mb-4">Our Diagnostic Capabilities</h2>
@@ -130,9 +146,9 @@ function LandingPage() {
               <div className="relative rounded-2xl overflow-hidden shadow-2xl">
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent z-10"></div>
                 <img 
-                  src="https://images.unsplash.com/photo-1559757175-0eb30cd8c063?w=800" 
+                  src="/wcu.jpg" 
                   alt="Digital healthcare and telemedicine platform with medical data visualization" 
-                  className="w-full h-auto object-cover min-h-[250px] sm:min-h-[300px] bg-gray-200"
+                  className="w-full h-auto object-cover min-h-[250px] sm:min-h-[300px] bg-white"
                   loading="lazy"
                 />
               </div>
@@ -231,7 +247,7 @@ function LandingPage() {
               <div className="relative rounded-2xl overflow-hidden shadow-2xl">
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent z-10"></div>
                 <img 
-                  src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?w=800" 
+                  src="/doctor-patient.webp" 
                   alt="Doctor with clipboard attending to patient in hospital bed" 
                   className="w-full h-auto object-cover min-h-[250px] sm:min-h-[300px] bg-gray-200"
                   loading="lazy"

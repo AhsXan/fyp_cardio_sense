@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Navbar from '../../components/Navbar'
+import Toast from '../../components/Toast'
 import { adminAPI } from '../../services/api'
 
 function ManageUsers() {
@@ -18,6 +19,11 @@ function ManageUsers() {
     perPage: 20,
     total: 0
   })
+  const [toast, setToast] = useState(null)
+
+  const showToast = (message, type = 'info') => {
+    setToast({ message, type })
+  }
 
   useEffect(() => {
     fetchUsers()
@@ -61,10 +67,10 @@ function ManageUsers() {
 
     try {
       await adminAPI.userAction(userId, action)
-      alert(`User ${action}d successfully!`)
+      showToast(`User ${action}d successfully!`, 'success')
       fetchUsers() // Refresh list
     } catch (err) {
-      alert(`Failed to ${action} user: ` + (err.response?.data?.detail || err.message))
+      showToast(`Failed to ${action} user: ` + (err.response?.data?.detail || err.message), 'error')
     }
   }
 
@@ -320,6 +326,15 @@ function ManageUsers() {
           )}
         </div>
       </div>
+      
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   )
 }

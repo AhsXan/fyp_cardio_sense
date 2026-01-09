@@ -177,16 +177,16 @@ function DoctorDashboard() {
                         </Button>
                       </Link>
                       <Button 
-                        variant="primary" 
-                        className="text-xs px-3 py-1 bg-green-600 hover:bg-green-700"
+                        variant="success" 
+                        className="text-xs px-3 py-1"
                         onClick={() => handleReview(item.id, true)}
                         disabled={reviewingId === item.id}
                       >
                         {reviewingId === item.id ? 'Saving...' : '✓ Agree with AI'}
                       </Button>
                       <Button 
-                        variant="secondary" 
-                        className="text-xs px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white"
+                        variant="warning" 
+                        className="text-xs px-3 py-1"
                         onClick={() => setReviewModal({ open: true, upload: item })}
                       >
                         ✎ Override
@@ -265,16 +265,16 @@ function DoctorDashboard() {
             </p>
             <div className="flex flex-col gap-3">
               <Button
-                variant="primary"
-                className="bg-green-600 hover:bg-green-700 w-full"
+                variant="success"
+                className="w-full"
                 onClick={() => handleReview(reviewModal.upload.id, false, 'NORMAL')}
                 disabled={reviewingId === reviewModal.upload.id}
               >
                 ❤️ Mark as NORMAL
               </Button>
               <Button
-                variant="primary"
-                className="bg-red-600 hover:bg-red-700 w-full"
+                variant="danger"
+                className="w-full"
                 onClick={() => handleReview(reviewModal.upload.id, false, 'ABNORMAL')}
                 disabled={reviewingId === reviewModal.upload.id}
               >

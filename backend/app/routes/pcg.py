@@ -2,16 +2,25 @@
 Handles PCG audio file uploads, status, and results with AI analysis
 """
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
 import time
 import os
+import io
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
 from app.database import get_db
 from app.models.user import User
 from app.models.pcg_upload import PCGUpload, UploadStatus
 from app.models.analysis_result import AnalysisResult, ClassificationResult
+from app.models.researcher_suggestion import ResearcherSuggestion
 from app.services.file_service import FileService
 from app.utils.security import get_current_user
 
@@ -213,7 +222,7 @@ async def get_upload_results(
 ):
     """
     Get analysis results for an upload including AI classification
-    Accessible by patient (owner) or their assigned doctor
+    Accessible by patient (owner) or ANY doctor
     """
     upload = db.query(PCGUpload).filter(
         PCGUpload.id == upload_id
@@ -225,21 +234,14 @@ async def get_upload_results(
             detail="Upload not found"
         )
     
-    # Check access: must be owner OR assigned doctor
+    # Check access: must be owner OR any doctor
     has_access = False
     if upload.user_id == current_user.id:
         # Patient owns this upload
         has_access = True
     elif current_user.role.value == 'doctor':
-        # Check if doctor is assigned to patient
-        from app.models.doctor_patient import DoctorPatient, AssignmentStatus
-        assignment = db.query(DoctorPatient).filter(
-            DoctorPatient.doctor_id == current_user.id,
-            DoctorPatient.patient_id == upload.user_id,
-            DoctorPatient.status == AssignmentStatus.ACTIVE
-        ).first()
-        if assignment:
-            has_access = True
+        # Any doctor can view any upload
+        has_access = True
     
     if not has_access:
         raise HTTPException(
@@ -273,6 +275,20 @@ async def get_upload_results(
     response["file_format"] = upload.file_format
     response["device"] = upload.device
     response["uploaded_at"] = upload.created_at.isoformat() if upload.created_at else None
+    
+    # Get researcher suggestions if any
+    suggestions = db.query(ResearcherSuggestion).filter(
+        ResearcherSuggestion.upload_id == upload_id
+    ).all()
+    
+    if suggestions:
+        response["researcher_suggestions"] = [{
+            "suggestion": s.suggestion,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+            "researcher_id": s.researcher_id
+        } for s in suggestions]
+    else:
+        response["researcher_suggestions"] = []
     
     return response
 
@@ -374,19 +390,19 @@ async def delete_upload(
 # ============================================================
 
 
-@router.post("/{upload_id}/mock-analyze")
-async def mock_analyze(
+@router.get("/{upload_id}/download-report")
+async def download_pdf_report(
     upload_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    TEMPORARY: Mock analysis endpoint for testing
-    This simulates what the ML model will do
+    Generate and download PDF report for an upload
+    Accessible by patient (owner) or ANY doctor
     """
+    # Get upload
     upload = db.query(PCGUpload).filter(
-        PCGUpload.id == upload_id,
-        PCGUpload.user_id == current_user.id
+        PCGUpload.id == upload_id
     ).first()
     
     if not upload:
@@ -395,55 +411,195 @@ async def mock_analyze(
             detail="Upload not found"
         )
     
-    # Update status to processing
-    upload.status = UploadStatus.PROCESSING
-    upload.progress = 50
-    db.commit()
+    # Check access: must be owner OR any doctor
+    has_access = False
+    if upload.user_id == current_user.id:
+        has_access = True
+    elif current_user.role.value == 'doctor':
+        has_access = True
     
-    # Create mock results
-    mock_results = [
-        {"label": "S1", "start_time": 0.1, "end_time": 0.15, "confidence": 0.95},
-        {"label": "S2", "start_time": 0.35, "end_time": 0.4, "confidence": 0.92},
-        {"label": "S1", "start_time": 0.9, "end_time": 0.95, "confidence": 0.94},
-        {"label": "S2", "start_time": 1.15, "end_time": 1.2, "confidence": 0.91},
-        {"label": "S1", "start_time": 1.7, "end_time": 1.75, "confidence": 0.96},
-        {"label": "S2", "start_time": 1.95, "end_time": 2.0, "confidence": 0.93},
-    ]
+    if not has_access:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to download this report"
+        )
     
-    # Create analysis result
-    result = AnalysisResult(
-        upload_id=upload_id,
-        results=mock_results,
-        total_s1_count=3,
-        total_s2_count=3,
-        average_confidence=0.935,
-        heart_rate_bpm=72.5,
-        model_version="mock-v1.0",
-        processing_time_seconds=2.5
+    # Get analysis results
+    result = db.query(AnalysisResult).filter(
+        AnalysisResult.upload_id == upload_id
+    ).first()
+    
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Analysis results not found"
+        )
+    
+    # Get patient info
+    patient = db.query(User).filter(User.id == upload.user_id).first()
+    
+    # Generate PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    story = []
+    styles = getSampleStyleSheet()
+    
+    # Custom styles
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#1E40AF'),
+        spaceAfter=30,
+        alignment=TA_CENTER
     )
     
-    db.add(result)
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=16,
+        textColor=colors.HexColor('#1E40AF'),
+        spaceAfter=12,
+        spaceBefore=12
+    )
     
-    # Update upload status
-    upload.status = UploadStatus.COMPLETED
-    upload.progress = 100
-    upload.processed_at = datetime.utcnow()
+    # Title
+    story.append(Paragraph("CardioSense Heart Sound Analysis Report", title_style))
+    story.append(Spacer(1, 0.3*inch))
     
-    db.commit()
+    # Patient Information
+    story.append(Paragraph("Patient Information", heading_style))
+    patient_data = [
+        ['Patient Name:', patient.full_name if patient else 'N/A'],
+        ['Report Date:', datetime.utcnow().strftime('%B %d, %Y')],
+        ['Upload Date:', upload.created_at.strftime('%B %d, %Y') if upload.created_at else 'N/A'],
+        ['File Name:', upload.original_filename],
+    ]
+    patient_table = Table(patient_data, colWidths=[2*inch, 4*inch])
+    patient_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F3F4F6')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
+    ]))
+    story.append(patient_table)
+    story.append(Spacer(1, 0.3*inch))
     
-    print(f"\n🔬 Mock Analysis Complete: Upload #{upload_id}")
-    print(f"   S1 detected: 3, S2 detected: 3")
-    print(f"   Heart Rate: 72.5 BPM")
+    # AI Classification Result
+    story.append(Paragraph("AI Classification Result", heading_style))
+    classification = result.classification.value if result.classification else 'PENDING'
+    classification_color = colors.HexColor('#059669') if classification == 'NORMAL' else colors.HexColor('#DC2626')
     
-    return {
-        "success": True,
-        "upload_id": upload_id,
-        "message": "Mock analysis completed",
-        "results_summary": {
-            "s1_count": 3,
-            "s2_count": 3,
-            "heart_rate_bpm": 72.5,
-            "confidence": 0.935
+    ai_data = [
+        ['Classification:', classification],
+        ['Confidence:', f"{result.classification_confidence:.1f}%" if result.classification_confidence else 'N/A'],
+        ['Normal Probability:', f"{result.probability_normal:.1f}%" if result.probability_normal else 'N/A'],
+        ['Abnormal Probability:', f"{result.probability_abnormal:.1f}%" if result.probability_abnormal else 'N/A'],
+        ['Model Version:', result.model_version or 'N/A'],
+        ['Processing Time:', f"{result.processing_time_seconds:.2f}s" if result.processing_time_seconds else 'N/A'],
+    ]
+    ai_table = Table(ai_data, colWidths=[2*inch, 4*inch])
+    ai_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F3F4F6')),
+        ('BACKGROUND', (1, 0), (1, 0), classification_color),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('TEXTCOLOR', (1, 0), (1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
+    ]))
+    story.append(ai_table)
+    story.append(Spacer(1, 0.3*inch))
+    
+    # Doctor's Review (if available)
+    if result.doctor_reviewed:
+        story.append(Paragraph("Doctor's Review", heading_style))
+        doctor = db.query(User).filter(User.id == result.doctor_id).first()
+        doctor_data = [
+            ['Reviewed By:', f"Dr. {doctor.full_name}" if doctor else 'N/A'],
+            ['Review Date:', result.doctor_reviewed.strftime('%B %d, %Y') if result.doctor_reviewed else 'N/A'],
+            ['Agrees with AI:', 'Yes' if result.doctor_agrees_with_ai else 'No'],
+        ]
+        
+        if result.doctor_classification:
+            doctor_data.append(['Doctor\'s Classification:', result.doctor_classification.value])
+        
+        doctor_table = Table(doctor_data, colWidths=[2*inch, 4*inch])
+        doctor_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F3F4F6')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
+        ]))
+        story.append(doctor_table)
+        
+        if result.doctor_comments:
+            story.append(Spacer(1, 0.2*inch))
+            story.append(Paragraph("<b>Doctor's Comments:</b>", styles['Normal']))
+            story.append(Spacer(1, 0.1*inch))
+            story.append(Paragraph(result.doctor_comments, styles['Normal']))
+        
+        story.append(Spacer(1, 0.3*inch))
+    
+    # Researcher Suggestions (if available)
+    suggestions = db.query(ResearcherSuggestion).filter(
+        ResearcherSuggestion.upload_id == upload_id
+    ).all()
+    
+    if suggestions:
+        story.append(Paragraph("Researcher Suggestions", heading_style))
+        story.append(Paragraph(
+            "<i>Research feedback for improving AI model accuracy and detection methods</i>",
+            styles['Normal']
+        ))
+        story.append(Spacer(1, 0.2*inch))
+        
+        for idx, suggestion in enumerate(suggestions, 1):
+            story.append(Paragraph(f"<b>Suggestion {idx}:</b>", styles['Normal']))
+            story.append(Paragraph(suggestion.suggestion, styles['Normal']))
+            story.append(Paragraph(
+                f"<i>Submitted: {suggestion.created_at.strftime('%B %d, %Y') if suggestion.created_at else 'N/A'}</i>",
+                ParagraphStyle('Small', parent=styles['Normal'], fontSize=8, textColor=colors.grey)
+            ))
+            if idx < len(suggestions):
+                story.append(Spacer(1, 0.15*inch))
+        
+        story.append(Spacer(1, 0.3*inch))
+    
+    # Disclaimer
+    story.append(Spacer(1, 0.5*inch))
+    disclaimer_style = ParagraphStyle(
+        'Disclaimer',
+        parent=styles['Normal'],
+        fontSize=8,
+        textColor=colors.grey,
+        alignment=TA_CENTER
+    )
+    story.append(Paragraph(
+        "<b>Disclaimer:</b> This report is generated by CardioSense AI system and should be used as a diagnostic aid. "
+        "Final diagnosis should be made by a qualified healthcare professional.",
+        disclaimer_style
+    ))
+    
+    # Build PDF
+    doc.build(story)
+    buffer.seek(0)
+    
+    # Return as streaming response
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=CardioSense_Report_{upload_id}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
         }
-    }
+    )
 

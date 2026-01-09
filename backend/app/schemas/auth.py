@@ -55,9 +55,10 @@ class SignupRequest(BaseModel):
 
 class SignupResponse(BaseModel):
     """Signup response"""
-    user_id: int
+    user_id: Optional[int] = None  # None until OTP verification
     pending_verification: bool = True
-    message: str = "User created. Please verify your email."
+    message: str = "Signup initiated. Please verify your email."
+    signup_token: Optional[str] = None  # Token to verify OTP
 
 
 class LoginRequest(BaseModel):
@@ -91,6 +92,7 @@ class OTPVerifyRequest(BaseModel):
     """OTP verification request"""
     user_id: Optional[int] = None
     temp_token: Optional[str] = None
+    signup_token: Optional[str] = None  # For signup verification
     otp: str = Field(..., min_length=6, max_length=6)
     
     @validator('otp')
@@ -104,6 +106,7 @@ class OTPVerifyResponse(BaseModel):
     """OTP verification response"""
     verified: bool
     message: str = "Verification successful"
+    user_id: Optional[int] = None  # User ID after signup verification
 
 
 class TokenResponse(BaseModel):

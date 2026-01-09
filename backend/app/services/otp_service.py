@@ -1,6 +1,7 @@
 """
 OTP Service - Handles OTP generation, storage, and verification
 Outputs OTP to terminal for debugging (as per user preference)
+Sends OTP to Gmail addresses via email
 """
 import random
 import string
@@ -12,6 +13,7 @@ import os
 
 from app.models.otp_token import OTPToken, OTPType
 from app.models.user import User
+from app.services.email_service import EmailService
 
 load_dotenv()
 
@@ -74,8 +76,25 @@ class OTPService:
         user = db.query(User).filter(User.id == user_id).first()
         user_email = user.email if user else "Unknown"
         
-        # Print OTP to terminal (as per user preference)
-        OTPService._print_otp_to_terminal(otp_code, user_email, otp_type, expires_at)
+        # Determine OTP purpose for email
+        purpose_map = {
+            OTPType.SIGNUP_VERIFY: "Email Verification",
+            OTPType.LOGIN_2FA: "Two-Factor Authentication",
+            OTPType.PASSWORD_RESET: "Password Reset",
+            OTPType.PHONE_VERIFY: "Phone Verification",
+        }
+        purpose = purpose_map.get(otp_type, "Verification")
+        
+        # Try to send email to Gmail addresses
+        email_sent = False
+        if user_email and EmailService.is_gmail(user_email):
+            email_sent = EmailService.send_otp_email(user_email, otp_code, purpose)
+        
+        # Always print to terminal (fallback for non-Gmail or if email fails)
+        if not email_sent:
+            OTPService._print_otp_to_terminal(otp_code, user_email, otp_type, expires_at)
+        else:
+            print(f"\n📧 OTP sent via email to {user_email} (Gmail)")
         
         return otp_code, otp_token
     

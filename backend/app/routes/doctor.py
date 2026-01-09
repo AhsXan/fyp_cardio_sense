@@ -22,20 +22,20 @@ async def get_doctor_dashboard(
     db: Session = Depends(get_db)
 ):
     """
-    Get comprehensive dashboard data for doctor including all patient uploads with AI results
+    Get comprehensive dashboard data for doctor including ALL patient uploads with AI results
+    Doctors can see uploads from all patients (not just assigned ones)
     """
-    # Get all assigned patient IDs
+    # Get all uploads from ALL patients (not just assigned)
+    all_uploads = db.query(PCGUpload).filter(
+        PCGUpload.status == UploadStatus.COMPLETED
+    ).order_by(PCGUpload.created_at.desc()).all()
+    
+    # Get assigned patient IDs for stats
     assignments = db.query(DoctorPatient).filter(
         DoctorPatient.doctor_id == current_user.id,
         DoctorPatient.status == AssignmentStatus.ACTIVE
     ).all()
-    
     patient_ids = [a.patient_id for a in assignments]
-    
-    # Get all uploads from assigned patients
-    all_uploads = db.query(PCGUpload).filter(
-        PCGUpload.user_id.in_(patient_ids) if patient_ids else False
-    ).order_by(PCGUpload.created_at.desc()).all()
     
     # Collect data for each upload
     pending_reviews = []
@@ -61,18 +61,25 @@ async def get_doctor_dashboard(
             "status": upload.status.value,
             "classification": None,
             "confidence": None,
-            "doctor_reviewed": None
+            "doctor_reviewed": None,
+            "doctor_classification": None,
+            "doctor_agrees_with_ai": None
         }
         
         if analysis:
-            upload_data["classification"] = analysis.classification.value if analysis.classification else None
+            # Show doctor's classification if available, otherwise AI classification
+            display_classification = analysis.doctor_classification if analysis.doctor_classification else analysis.classification
+            upload_data["classification"] = display_classification.value if display_classification else None
             upload_data["confidence"] = analysis.classification_confidence
             upload_data["doctor_reviewed"] = analysis.doctor_reviewed.isoformat() if analysis.doctor_reviewed else None
+            upload_data["doctor_classification"] = analysis.doctor_classification.value if analysis.doctor_classification else None
+            upload_data["doctor_agrees_with_ai"] = bool(analysis.doctor_agrees_with_ai) if analysis.doctor_agrees_with_ai is not None else None
             
-            # Update stats
-            if analysis.classification == ClassificationResult.NORMAL:
+            # Update stats based on final classification (doctor override takes precedence)
+            final_classification = analysis.doctor_classification if analysis.doctor_classification else analysis.classification
+            if final_classification == ClassificationResult.NORMAL:
                 stats["normal_count"] += 1
-            elif analysis.classification == ClassificationResult.ABNORMAL:
+            elif final_classification == ClassificationResult.ABNORMAL:
                 stats["abnormal_count"] += 1
             
             # Check if needs review
@@ -331,7 +338,7 @@ async def review_analysis(
 @router.post("/add-comment/{upload_id}")
 async def add_doctor_comment(
     upload_id: int,
-    comment: str,
+    comment: str = Body(..., embed=True),
     current_user: User = Depends(require_doctor),
     db: Session = Depends(get_db)
 ):

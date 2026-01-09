@@ -14,7 +14,6 @@ export default {
   collectCoverageFrom: [
     'src/**/*.{js,jsx}',
     '!src/main.jsx',
-    '!src/mocks/**',
   ],
 }
 

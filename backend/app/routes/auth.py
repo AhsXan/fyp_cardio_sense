@@ -5,11 +5,14 @@ Handles signup, login, OTP verification, password reset
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timedelta
+import json
+import secrets
+import io
 
 from app.database import get_db
 from app.models.user import User, UserRole, UserStatus
-from app.models.otp_token import OTPType
+from app.models.otp_token import OTPType, OTPToken
 from app.schemas.auth import (
     SignupRequest, SignupResponse,
     LoginRequest, LoginResponse,
@@ -25,6 +28,10 @@ from app.services.otp_service import OTPService
 from app.services.file_service import FileService
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+# Temporary storage for pending signups (before OTP verification)
+# In production, use Redis or a database table
+pending_signups = {}
 
 
 @router.post("/signup/{role}", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
@@ -51,7 +58,8 @@ async def signup(
     db: Session = Depends(get_db)
 ):
     """
-    Register a new user
+    Register a new user (Step 1: Store data temporarily, don't create user yet)
+    User will be created only AFTER OTP verification
     Roles: patient, doctor, researcher
     """
     # Validate role
@@ -78,85 +86,92 @@ async def signup(
             detail="User with this email already exists. Please login or use a different email."
         )
     
-    # Create user
-    user = User(
-        email=email.lower(),
-        password_hash=hash_password(password),
-        full_name=full_name,
-        phone=phone,
-        role=user_role,
-        status=UserStatus.PENDING
+    # Generate unique signup token
+    signup_token = secrets.token_urlsafe(32)
+    
+    # Store signup data temporarily (will create user after OTP verification)
+    signup_data = {
+        "email": email.lower(),
+        "password_hash": hash_password(password),
+        "full_name": full_name,
+        "phone": phone,
+        "role": role,
+        "date_of_birth": date_of_birth,
+        "gender": gender,
+        "blood_group": blood_group,
+        "license_number": license_number,
+        "specialization": specialization,
+        "hospital": hospital,
+        "institution": institution,
+        "research_area": research_area,
+        "license_document": None,  # Will handle file after user creation
+        "affiliation_document": None,
+        "created_at": datetime.utcnow().isoformat()
+    }
+    
+    # Handle document uploads temporarily
+    if license_document:
+        content = await license_document.read()
+        signup_data["license_document"] = {
+            "filename": license_document.filename,
+            "content_type": license_document.content_type,
+            "content": content
+        }
+    
+    if affiliation_document:
+        content = await affiliation_document.read()
+        signup_data["affiliation_document"] = {
+            "filename": affiliation_document.filename,
+            "content_type": affiliation_document.content_type,
+            "content": content
+        }
+    
+    # Store in temporary storage
+    pending_signups[signup_token] = signup_data
+    
+    # Create a temporary OTP token record to send OTP (without user_id)
+    otp_code = OTPService.generate_otp()
+    expires_at = datetime.utcnow() + timedelta(minutes=15)
+    
+    temp_otp = OTPToken(
+        user_id=None,  # Will be set after user creation
+        otp_code=otp_code,
+        token_type=OTPType.SIGNUP_VERIFY,
+        temp_token=signup_token,
+        expires_at=expires_at
     )
     
-    # Add role-specific fields
-    if user_role == UserRole.PATIENT:
-        if date_of_birth:
-            try:
-                user.date_of_birth = datetime.fromisoformat(date_of_birth)
-            except:
-                pass
-        user.gender = gender
-        user.blood_group = blood_group
-    
-    elif user_role == UserRole.DOCTOR:
-        user.license_number = license_number
-        user.specialization = specialization
-        user.hospital = hospital
-        
-    elif user_role == UserRole.RESEARCHER:
-        user.institution = institution
-        user.research_area = research_area
-    
-    db.add(user)
+    db.add(temp_otp)
     db.commit()
-    db.refresh(user)
     
-    # Handle document uploads for doctor/researcher
-    if user_role == UserRole.DOCTOR and license_document:
-        _, file_path = await FileService.save_document(license_document, user.id, "license")
-        user.license_document_path = file_path
-        db.commit()
+    # Send OTP (email for Gmail, terminal for others)
+    from app.services.email_service import EmailService
+    email_sent = False
+    if EmailService.is_gmail(email):
+        email_sent = EmailService.send_otp_email(email, otp_code, "Email Verification")
     
-    if user_role == UserRole.RESEARCHER and affiliation_document:
-        _, file_path = await FileService.save_document(affiliation_document, user.id, "affiliation")
-        user.affiliation_document_path = file_path
-        db.commit()
+    if not email_sent:
+        # Print to terminal
+        print("\n" + "=" * 60)
+        print("📧 SIGNUP OTP - TERMINAL OUTPUT")
+        print("=" * 60)
+        print(f"📍 Purpose: Email Verification (Signup)")
+        print(f"👤 User: {email}")
+        print(f"🔑 OTP Code: {otp_code}")
+        print(f"⏰ Expires: {expires_at.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        print(f"⏳ Valid for: 15 minutes")
+        print("=" * 60)
+        print("💡 Use this code in the frontend to verify")
+        print("=" * 60 + "\n")
     
-    print(f"\n📝 New User Signup: {email} (Role: {role})")
+    print(f"\n📝 Pending Signup: {email} (Role: {role}) - Awaiting OTP verification")
     
     return SignupResponse(
-        user_id=user.id,
+        user_id=None,  # Will be assigned after OTP verification
         pending_verification=True,
-        message="User created. Please verify your email."
+        message="Signup initiated. Please verify your email with the OTP sent to you.",
+        signup_token=signup_token  # Need to add this field to response model
     )
-
-
-@router.post("/send-signup-otp")
-async def send_signup_otp(
-    request: OTPRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Send OTP to verify email after signup
-    """
-    user = db.query(User).filter(User.email == request.email.lower()).first()
-    
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
-    if user.email_verified:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already verified"
-        )
-    
-    # Generate and send OTP
-    OTPService.create_otp(db, user.id, OTPType.SIGNUP_VERIFY)
-    
-    return {"success": True, "message": "OTP sent to your email (check terminal)"}
 
 
 @router.post("/verify-signup-otp", response_model=OTPVerifyResponse)
@@ -165,31 +180,113 @@ async def verify_signup_otp(
     db: Session = Depends(get_db)
 ):
     """
-    Verify OTP to complete email verification
+    Verify OTP to complete signup and create user in database
+    (Step 2: Create user AFTER OTP verification)
     """
-    is_valid, otp_token, message = OTPService.verify_otp(
-        db,
-        otp_code=request.otp,
-        user_id=request.user_id,
-        otp_type=OTPType.SIGNUP_VERIFY
-    )
+    # Find OTP by code and temp_token (signup_token)
+    otp_token = db.query(OTPToken).filter(
+        OTPToken.otp_code == request.otp,
+        OTPToken.temp_token == request.signup_token,
+        OTPToken.token_type == OTPType.SIGNUP_VERIFY,
+        OTPToken.used.is_(None)
+    ).first()
     
-    if not is_valid:
+    if not otp_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=message
+            detail="Invalid OTP code"
         )
     
-    # Mark user as verified
-    user = db.query(User).filter(User.id == otp_token.user_id).first()
-    if user:
-        user.email_verified = True
-        # Activate patients immediately, doctors/researchers need admin approval
-        if user.role == UserRole.PATIENT:
-            user.status = UserStatus.ACTIVE
+    if not otp_token.is_valid():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OTP has expired"
+        )
+    
+    # Get pending signup data
+    signup_token = request.signup_token
+    if signup_token not in pending_signups:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Signup session expired. Please sign up again."
+        )
+    
+    signup_data = pending_signups[signup_token]
+    
+    # NOW create the user (after OTP verification)
+    user_role = UserRole(signup_data["role"])
+    
+    user = User(
+        email=signup_data["email"],
+        password_hash=signup_data["password_hash"],
+        full_name=signup_data["full_name"],
+        phone=signup_data["phone"],
+        role=user_role,
+        status=UserStatus.PENDING,
+        email_verified=True  # Mark as verified since OTP is confirmed
+    )
+    
+    # Add role-specific fields
+    if user_role == UserRole.PATIENT:
+        if signup_data.get("date_of_birth"):
+            try:
+                user.date_of_birth = datetime.fromisoformat(signup_data["date_of_birth"])
+            except:
+                pass
+        user.gender = signup_data.get("gender")
+        user.blood_group = signup_data.get("blood_group")
+        # Activate patients immediately after OTP verification
+        user.status = UserStatus.ACTIVE
+    
+    elif user_role == UserRole.DOCTOR:
+        user.license_number = signup_data.get("license_number")
+        user.specialization = signup_data.get("specialization")
+        user.hospital = signup_data.get("hospital")
+    
+    elif user_role == UserRole.RESEARCHER:
+        user.institution = signup_data.get("institution")
+        user.research_area = signup_data.get("research_area")
+    
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    # Handle document uploads for doctor/researcher
+    if user_role == UserRole.DOCTOR and signup_data.get("license_document"):
+        doc_data = signup_data["license_document"]
+        # Create UploadFile-like object from stored data
+        file_obj = io.BytesIO(doc_data["content"])
+        file_obj.name = doc_data["filename"]
+        from fastapi import UploadFile as UP
+        upload_file = UP(filename=doc_data["filename"], file=file_obj)
+        _, file_path = await FileService.save_document(upload_file, user.id, "license")
+        user.license_document_path = file_path
         db.commit()
     
-    return OTPVerifyResponse(verified=True, message="Email verified successfully")
+    if user_role == UserRole.RESEARCHER and signup_data.get("affiliation_document"):
+        doc_data = signup_data["affiliation_document"]
+        file_obj = io.BytesIO(doc_data["content"])
+        file_obj.name = doc_data["filename"]
+        from fastapi import UploadFile as UP
+        upload_file = UP(filename=doc_data["filename"], file=file_obj)
+        _, file_path = await FileService.save_document(upload_file, user.id, "affiliation")
+        user.affiliation_document_path = file_path
+        db.commit()
+    
+    # Mark OTP as used
+    otp_token.mark_as_used()
+    db.commit()
+    
+    # Clean up pending signup data
+    del pending_signups[signup_token]
+    
+    print(f"\n✅ User Created: {user.email} (Role: {user.role.value}) - OTP Verified")
+    
+    return OTPVerifyResponse(
+        verified=True,
+        message="Email verified successfully. Account created!",
+        user_id=user.id
+    )
 
 
 @router.post("/login")
