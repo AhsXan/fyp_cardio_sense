@@ -1,6 +1,6 @@
 """
-AI Service for Heart Sound Classification
-Handles PCG audio file processing and prediction using the trained model
+AI Service for Heart Sound Classification with Confidence Calibration
+Handles PCG audio file processing and prediction using the trained model with temperature scaling
 """
 import numpy as np
 import librosa
@@ -10,10 +10,10 @@ import os
 import tensorflow as tf
 from typing import Tuple, Dict
 
-class HeartSoundClassifier:
+class HeartSoundClassifierCalibrated:
     """
-    Heart Sound Classification Service using Hybrid CNN+LSTM Model
-    WITH CONFIDENCE CALIBRATION via Temperature Scaling
+    Heart Sound Classification Service with Confidence Calibration
+    Uses Temperature Scaling to prevent overconfident predictions
     """
     
     # Model Configuration
@@ -23,24 +23,27 @@ class HeartSoundClassifier:
     MFCC_LEN = 38          # LSTM input length (time frames)
     N_MFCC = 20            # Number of MFCC coefficients
     
-    # Calibration parameter to reduce overconfidence
-    # Higher T = more conservative (lower confidence)
-    # For existing model trained without calibration, use higher T
-    TEMPERATURE = 5.0      # Increased from 2.5 to reduce 99.84% to ~80-90%
+    # Calibration parameters
+    TEMPERATURE = 2.5      # Temperature for softmax scaling (reduces overconfidence)
     
-    def __init__(self, model_path: str):
+    def __init__(self, model_path: str, temperature: float = None):
         """
         Initialize the classifier with a trained model
         
         Args:
             model_path: Path to the trained .h5 model file
+            temperature: Temperature scaling factor (default: 2.5)
         """
+        if temperature is not None:
+            self.TEMPERATURE = temperature
+        
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model file not found: {model_path}")
         
         print(f"Loading AI model from: {model_path}")
+        print(f"Temperature scaling: {self.TEMPERATURE}")
         
-        # Build model architecture first (Keras 3.x to Keras 2.x compatibility)
+        # Build model architecture first
         print("Building model architecture...")
         self.model = self._build_model()
         
@@ -49,6 +52,7 @@ class HeartSoundClassifier:
             print("Loading model weights...")
             self.model.load_weights(model_path)
             print("✅ Model weights loaded successfully!")
+            print(f"🌡️  Confidence calibration enabled (T={self.TEMPERATURE})")
             
         except Exception as e:
             print(f"❌ Failed to load weights: {str(e)}")
@@ -56,8 +60,7 @@ class HeartSoundClassifier:
     
     def _build_model(self) -> tf.keras.Model:
         """
-        Build the Hybrid CNN+LSTM model architecture
-        This matches the architecture from the training notebook
+        Build the Hybrid CNN+LSTM model architecture with temperature scaling
         
         Returns:
             Compiled Keras model
@@ -65,7 +68,7 @@ class HeartSoundClassifier:
         from tensorflow.keras.layers import (
             Input, Conv1D, MaxPooling1D, LSTM,
             Dense, Dropout, BatchNormalization, 
-            GlobalAveragePooling1D, Concatenate
+            GlobalAveragePooling1D, Concatenate, Lambda
         )
         from tensorflow.keras.models import Model
         
@@ -92,7 +95,13 @@ class HeartSoundClassifier:
         combined = Concatenate()([x, y_l])
         z = Dense(64, activation='relu')(combined)
         z = Dropout(0.4)(z)
-        output = Dense(2, activation='softmax')(z)
+        
+        # Output layer - get logits first
+        logits = Dense(2, activation='linear')(z)
+        
+        # Apply temperature scaling during inference
+        # This will be applied in the predict method
+        output = Lambda(lambda x: tf.nn.softmax(x))(logits)
         
         # Create model
         model = Model([analog_input, digital_input], output)
@@ -152,10 +161,28 @@ class HeartSoundClassifier:
         
         return analog, mfcc
     
+    def _apply_temperature_scaling(self, logits: np.ndarray) -> np.ndarray:
+        """
+        Apply temperature scaling to logits to calibrate confidence
+        
+        Args:
+            logits: Raw model outputs before softmax
+            
+        Returns:
+            Calibrated probabilities
+        """
+        # Scale logits by temperature
+        scaled_logits = logits / self.TEMPERATURE
+        
+        # Apply softmax
+        exp_logits = np.exp(scaled_logits - np.max(scaled_logits, axis=1, keepdims=True))
+        probabilities = exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
+        
+        return probabilities
+    
     def predict(self, file_path: str) -> Dict[str, any]:
         """
-        Predict heart sound classification with CALIBRATED CONFIDENCE
-        Uses temperature scaling to prevent overconfident predictions
+        Predict heart sound classification with calibrated confidence
         
         Args:
             file_path: Path to the WAV audio file
@@ -164,46 +191,37 @@ class HeartSoundClassifier:
             Dictionary with prediction results:
             {
                 "label": "NORMAL" or "ABNORMAL",
-                "confidence": float (0-100) - CALIBRATED,
+                "confidence": float (0-100),
                 "probabilities": {
                     "normal": float,
                     "abnormal": float
-                }
+                },
+                "calibrated": True
             }
         """
         try:
             # Preprocess audio
             analog, mfcc = self.preprocess_heart_sound(file_path)
             
-            # Make prediction (raw probabilities)
+            # Get model predictions (these are already softmax outputs)
             raw_prediction = self.model.predict([analog, mfcc], verbose=0)
             
-            # Apply temperature scaling for calibration
-            # raw_prediction shape: (1, 2) - batch of 1, 2 classes
+            # Convert softmax back to logits for temperature scaling
+            # logit(p) = log(p / (1-p)) for binary case, or use log(p) directly
             epsilon = 1e-7  # Prevent log(0)
             raw_prediction = np.clip(raw_prediction, epsilon, 1 - epsilon)
+            logits = np.log(raw_prediction)
             
-            # Convert to logits (inverse of softmax)
-            logits = np.log(raw_prediction)  # Shape: (1, 2)
+            # Apply temperature scaling
+            calibrated_pred = self._apply_temperature_scaling(logits)
             
-            # Scale by temperature
-            scaled_logits = logits / self.TEMPERATURE
-            
-            # Apply softmax to get calibrated probabilities
-            # Subtract max for numerical stability
-            exp_logits = np.exp(scaled_logits - np.max(scaled_logits, axis=1, keepdims=True))
-            calibrated_pred = exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
-            
-            # Extract the single prediction (remove batch dimension)
-            calibrated_pred = calibrated_pred[0]  # Shape: (2,)
-            
-            # Get class and confidence from calibrated predictions
-            cls = int(np.argmax(calibrated_pred))
-            confidence = float(calibrated_pred[cls]) * 100
+            # Get class and confidence
+            cls = int(np.argmax(calibrated_pred[0]))
+            confidence = float(calibrated_pred[0][cls]) * 100
             
             # Get probabilities for both classes
-            prob_normal = float(calibrated_pred[0]) * 100
-            prob_abnormal = float(calibrated_pred[1]) * 100
+            prob_normal = float(calibrated_pred[0][0]) * 100
+            prob_abnormal = float(calibrated_pred[0][1]) * 100
             
             label = "NORMAL" if cls == 0 else "ABNORMAL"
             
@@ -213,45 +231,45 @@ class HeartSoundClassifier:
                 "probabilities": {
                     "normal": round(prob_normal, 2),
                     "abnormal": round(prob_abnormal, 2)
-                }
+                },
+                "calibrated": True,
+                "temperature": self.TEMPERATURE
             }
             
             print(f"🔬 Prediction: {label} (Confidence: {confidence:.2f}%)")
             print(f"   📊 NORMAL: {prob_normal:.2f}% | ABNORMAL: {prob_abnormal:.2f}%")
-            print(f"   🌡️  Calibrated with T={self.TEMPERATURE}")
             
             return result
             
         except Exception as e:
             print(f"❌ Prediction error: {str(e)}")
-            import traceback
-            traceback.print_exc()
             raise Exception(f"Failed to process audio file: {str(e)}")
 
 
 # Singleton instance
 _classifier_instance = None
 
-def get_classifier(model_path: str = None) -> HeartSoundClassifier:
+def get_classifier_calibrated(model_path: str = None, temperature: float = 2.5) -> HeartSoundClassifierCalibrated:
     """
-    Get or create the classifier instance
+    Get or create the calibrated classifier instance
     
     Args:
         model_path: Path to the model file (only needed on first call)
+        temperature: Temperature scaling factor (default: 2.5)
         
     Returns:
-        HeartSoundClassifier instance
+        HeartSoundClassifierCalibrated instance
     """
     global _classifier_instance
     
     if _classifier_instance is None:
         if model_path is None:
-            # Default model path: backend/app/services -> backend/app -> backend -> root -> AI
+            # Default model path
             model_path = os.path.join(
                 os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-                "AI",
+                "ai",
                 "hybrid_cnn_lstm_heart_sound_final.h5"
             )
-        _classifier_instance = HeartSoundClassifier(model_path)
+        _classifier_instance = HeartSoundClassifierCalibrated(model_path, temperature)
     
     return _classifier_instance
