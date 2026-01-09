@@ -61,12 +61,16 @@ export const authAPI = {
     } : {}
     return api.post(`/auth/signup/${role}`, data, config)
   },
-  sendSignupOTP: (email) => api.post('/auth/send-signup-otp', { email }),
-  verifySignupOTP: (userId, otp) => api.post('/auth/verify-signup-otp', { user_id: userId, otp }),
+  verifySignupOTP: (signupToken, otp) => api.post('/auth/verify-signup-otp', { signup_token: signupToken, otp }),
   login: (email, password) => api.post('/auth/login', { email, password }),
   sendLoginOTP: (tempToken) => api.post('/auth/send-login-otp', { temp_token: tempToken }),
   verifyLoginOTP: (tempToken, otp) => api.post('/auth/verify-login-otp', { temp_token: tempToken, otp }),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
+  resetPassword: (token, newPassword, confirmPassword) => api.post('/auth/reset-password', { 
+    token, 
+    new_password: newPassword, 
+    confirm_password: confirmPassword 
+  }),
 }
 
 // PCG endpoints
@@ -87,6 +91,9 @@ export const pcgAPI = {
   getStatus: (uploadId) => api.get(`/pcg/${uploadId}/status`),
   getResults: (uploadId) => api.get(`/pcg/${uploadId}/results`),
   getUploads: () => api.get('/pcg/uploads'),
+  downloadReport: (uploadId) => api.get(`/pcg/${uploadId}/download-report`, {
+    responseType: 'blob'
+  }),
 }
 
 // User endpoints
@@ -112,8 +119,11 @@ export const doctorAPI = {
 
 // Researcher endpoints
 export const researcherAPI = {
-  requestDatasetAccess: (datasetId) => api.post('/researcher/request-dataset-access', { dataset_id: datasetId }),
+  requestDatasetAccess: (data) => api.post('/researcher/request-dataset-access', data),
   getDatasets: () => api.get('/researcher/datasets'),
+  getMyAccess: () => api.get('/researcher/my-access'),
+  getReviewedResults: () => api.get('/researcher/reviewed-results'),
+  submitSuggestion: (uploadId, suggestion) => api.post(`/researcher/suggest/${uploadId}`, { suggestion }),
 }
 
 // Admin endpoints
@@ -128,5 +138,7 @@ export const adminAPI = {
   testAIPrediction: (formData) => api.post('/ai/test-predict', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
+  getDatasetRequests: () => api.get('/admin/dataset-access-requests'),
+  reviewDatasetRequest: (requestId, data) => api.post(`/admin/dataset-access/${requestId}/review`, data),
 }
 

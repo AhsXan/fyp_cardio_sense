@@ -22,6 +22,7 @@ function Login() {
   const [showOTP, setShowOTP] = useState(false)
   const [tempToken, setTempToken] = useState(null)
   const [message, setMessage] = useState(null)
+  const [loginAttempted, setLoginAttempted] = useState(false)
 
   // Auto-logout if user is already authenticated and visits login page
   useEffect(() => {
@@ -78,6 +79,7 @@ function Login() {
     } catch (error) {
       const errorMessage = error.response?.data?.detail || error.response?.data?.message || 'Login failed. Please check your credentials.'
       setErrors({ submit: errorMessage })
+      setLoginAttempted(true) // Show forgot password link after failed attempt
     } finally {
       setLoading(false)
     }
@@ -142,11 +144,13 @@ function Login() {
                 error={errors.password}
               />
               
-              <div className="mb-4 text-right">
-                <Link to="/forgot-password" className="text-sm text-primary hover:text-primary-dark">
-                  Forgot password?
-                </Link>
-              </div>
+              {loginAttempted && (
+                <div className="mb-4 text-right">
+                  <Link to="/forgot-password" className="text-sm text-primary hover:text-primary-dark font-medium">
+                    🔒 Forgot password?
+                  </Link>
+                </div>
+              )}
 
               {errors.submit && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">

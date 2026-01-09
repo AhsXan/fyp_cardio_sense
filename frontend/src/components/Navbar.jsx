@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 function Navbar({ isPublic = false }) {
   const { isAuthenticated, user, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const handleLogout = () => {
@@ -15,6 +16,20 @@ function Navbar({ isPublic = false }) {
 
   const closeMobileMenu = () => {
     setMobileMenuOpen(false)
+  }
+
+  const scrollToSection = (e, sectionId) => {
+    e.preventDefault()
+    setMobileMenuOpen(false)
+    
+    if (location.pathname === '/') {
+      const element = document.getElementById(sectionId)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' })
+      }
+    } else {
+      navigate('/', { state: { scrollTo: sectionId } })
+    }
   }
 
   return (
@@ -34,8 +49,8 @@ function Navbar({ isPublic = false }) {
             {isPublic && !isAuthenticated ? (
               <>
                 <Link to="/" className="text-gray-700 hover:text-primary px-3 py-2 text-sm lg:text-base transition-colors">Home</Link>
-                <Link to="/select-role" className="text-gray-700 hover:text-primary px-3 py-2 text-sm lg:text-base transition-colors">About</Link>
-                <Link to="/select-role" className="text-gray-700 hover:text-primary px-3 py-2 text-sm lg:text-base transition-colors">Services</Link>
+                <button onClick={(e) => scrollToSection(e, 'footer')} className="text-gray-700 hover:text-primary px-3 py-2 text-sm lg:text-base transition-colors">About</button>
+                <button onClick={(e) => scrollToSection(e, 'capabilities')} className="text-gray-700 hover:text-primary px-3 py-2 text-sm lg:text-base transition-colors">Services</button>
                 <Link to="/login" className="text-primary hover:text-primary-dark px-3 py-2 text-sm lg:text-base transition-colors">Log in</Link>
                 <Link to="/select-role" className="btn-primary text-sm lg:text-base">Sign up</Link>
               </>
@@ -88,12 +103,12 @@ function Navbar({ isPublic = false }) {
                 <Link to="/" onClick={closeMobileMenu} className="block text-gray-700 hover:text-primary hover:bg-gray-50 px-3 py-3 rounded-md text-base font-medium transition-colors">
                   Home
                 </Link>
-                <Link to="/select-role" onClick={closeMobileMenu} className="block text-gray-700 hover:text-primary hover:bg-gray-50 px-3 py-3 rounded-md text-base font-medium transition-colors">
+                <button onClick={(e) => scrollToSection(e, 'footer')} className="block w-full text-left text-gray-700 hover:text-primary hover:bg-gray-50 px-3 py-3 rounded-md text-base font-medium transition-colors">
                   About
-                </Link>
-                <Link to="/select-role" onClick={closeMobileMenu} className="block text-gray-700 hover:text-primary hover:bg-gray-50 px-3 py-3 rounded-md text-base font-medium transition-colors">
+                </button>
+                <button onClick={(e) => scrollToSection(e, 'capabilities')} className="block w-full text-left text-gray-700 hover:text-primary hover:bg-gray-50 px-3 py-3 rounded-md text-base font-medium transition-colors">
                   Services
-                </Link>
+                </button>
                 <Link to="/login" onClick={closeMobileMenu} className="block text-primary hover:text-primary-dark hover:bg-primary-light px-3 py-3 rounded-md text-base font-medium transition-colors">
                   Log in
                 </Link>

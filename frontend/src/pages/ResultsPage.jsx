@@ -2,15 +2,20 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Button from '../components/Button'
-import { pcgAPI } from '../services/api'
+import { pcgAPI, doctorAPI } from '../services/api'
+import { useAuth } from '../contexts/AuthContext'
 
 function ResultsPage() {
   const { uploadId } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [results, setResults] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [comments, setComments] = useState('')
+  const [savingComments, setSavingComments] = useState(false)
+  
+  const isDoctor = user?.role === 'doctor'
 
   useEffect(() => {
     fetchResults()
@@ -30,16 +35,44 @@ function ResultsPage() {
     }
   }
 
-  const handleDownloadReport = () => {
-    if (results?.report_pdf_url) {
-      window.open(results.report_pdf_url, '_blank')
-    } else {
-      alert('Report is being generated. Please try again later.')
+  const handleSaveComments = async () => {
+    if (!comments.trim()) {
+      alert('Please enter a comment before saving.')
+      return
+    }
+    
+    try {
+      setSavingComments(true)
+      await doctorAPI.addComment(uploadId, comments)
+      alert('Comments saved successfully!')
+      fetchResults() // Refresh to show updated comments
+    } catch (err) {
+      console.error('Failed to save comments:', err)
+      alert('Failed to save comments. Please try again.')
+    } finally {
+      setSavingComments(false)
     }
   }
 
-  const handleSaveComments = () => {
-    alert('Comments saved successfully!')
+  const handleDownloadReport = async () => {
+    try {
+      const response = await pcgAPI.downloadReport(uploadId)
+      // Create blob from response
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      // Create download link
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `CardioSense_Report_${uploadId}_${new Date().toISOString().split('T')[0]}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      // Cleanup
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Download failed:', err)
+      alert('Failed to download PDF report. Please try again.')
+    }
   }
 
   // Helper to get classification color
@@ -184,7 +217,7 @@ function ResultsPage() {
         {results?.doctor_reviewed && (
           <div className="card mb-6 border-2 border-blue-200 bg-blue-50">
             <h3 className="text-lg font-semibold mb-3 text-blue-900">
-              🥺 Doctor's Review
+              🩺 Doctor's Review
             </h3>
             <div className="space-y-2">
               {results.doctor_agrees_with_ai !== null && (
@@ -210,6 +243,28 @@ function ResultsPage() {
                   <p className="text-gray-700">{results.doctor_comments}</p>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Researcher Suggestions Section */}
+        {results?.researcher_suggestions && results.researcher_suggestions.length > 0 && (
+          <div className="card mb-6 border-2 border-purple-200 bg-purple-50">
+            <h3 className="text-lg font-semibold mb-3 text-purple-900">
+              🔬 Researcher Suggestions
+            </h3>
+            <p className="text-sm text-gray-600 mb-3">
+              Research feedback and suggestions for improving AI model accuracy
+            </p>
+            <div className="space-y-3">
+              {results.researcher_suggestions.map((suggestion, index) => (
+                <div key={index} className="p-3 bg-white rounded-lg border border-purple-100">
+                  <p className="text-gray-700 mb-2">{suggestion.suggestion}</p>
+                  <p className="text-xs text-gray-500">
+                    Submitted: {new Date(suggestion.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -248,20 +303,28 @@ function ResultsPage() {
           </div>
         </div>
 
-        {/* Comments/Notes Section */}
-        <div className="card">
-          <h2 className="text-lg sm:text-xl font-semibold mb-4">Comments & Notes</h2>
-          <textarea
-            className="w-full input-field mb-4"
-            rows="6"
-            value={comments}
-            onChange={(e) => setComments(e.target.value)}
-            placeholder="Add your comments or notes about this analysis..."
-          />
-          <Button variant="primary" onClick={handleSaveComments} className="w-full sm:w-auto">
-            Save Comments
-          </Button>
-        </div>
+        {/* Doctor Comments Section - Only for Doctors */}
+        {isDoctor && (
+          <div className="card">
+            <h2 className="text-lg sm:text-xl font-semibold mb-4">Doctor's Comments & Notes</h2>
+            <p className="text-sm text-gray-600 mb-3">Add your professional assessment and recommendations for this patient.</p>
+            <textarea
+              className="w-full input-field mb-4"
+              rows="6"
+              value={comments}
+              onChange={(e) => setComments(e.target.value)}
+              placeholder="Add your professional comments, diagnosis notes, or recommendations..."
+            />
+            <Button 
+              variant="primary" 
+              onClick={handleSaveComments} 
+              disabled={savingComments}
+              className="w-full sm:w-auto"
+            >
+              {savingComments ? 'Saving...' : 'Save Comments'}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )

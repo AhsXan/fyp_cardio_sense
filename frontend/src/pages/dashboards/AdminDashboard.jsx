@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import Navbar from '../../components/Navbar'
 import Button from '../../components/Button'
+import Toast from '../../components/Toast'
 import { useAuth } from '../../contexts/AuthContext'
 import { adminAPI } from '../../services/api'
 
@@ -9,10 +10,12 @@ function AdminDashboard() {
   const { user } = useAuth()
   const [stats, setStats] = useState(null)
   const [pendingVerifications, setPendingVerifications] = useState([])
+  const [datasetRequests, setDatasetRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedUser, setSelectedUser] = useState(null)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
+  const [toast, setToast] = useState(null)
   
   // AI Testing states
   const [showAITest, setShowAITest] = useState(false)
@@ -28,12 +31,14 @@ function AdminDashboard() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true)
-      const [statsResponse, pendingResponse] = await Promise.all([
+      const [statsResponse, pendingResponse, datasetResponse] = await Promise.all([
         adminAPI.getStats(),
-        adminAPI.getPendingApprovals()
+        adminAPI.getPendingApprovals(),
+        adminAPI.getDatasetRequests()
       ])
       setStats(statsResponse.data)
       setPendingVerifications(pendingResponse.data.approvals || [])
+      setDatasetRequests(datasetResponse.data.requests || [])
     } catch (err) {
       console.error('Error fetching dashboard data:', err)
       setError('Failed to load dashboard data')
@@ -64,6 +69,26 @@ function AdminDashboard() {
       fetchDashboardData() // Refresh data
     } catch (err) {
       alert('Failed to reject user: ' + (err.response?.data?.detail || err.message))
+    }
+  }
+
+  const handleApproveDataset = async (requestId) => {
+    try {
+      await adminAPI.reviewDatasetRequest(requestId, { action: 'approve' })
+      setToast({ message: 'Dataset access approved successfully!', type: 'success' })
+      fetchDashboardData()
+    } catch (err) {
+      setToast({ message: 'Failed to approve: ' + (err.response?.data?.detail || err.message), type: 'error' })
+    }
+  }
+
+  const handleRejectDataset = async (requestId) => {
+    try {
+      await adminAPI.reviewDatasetRequest(requestId, { action: 'reject' })
+      setToast({ message: 'Dataset request rejected!', type: 'success' })
+      fetchDashboardData()
+    } catch (err) {
+      setToast({ message: 'Failed to reject: ' + (err.response?.data?.detail || err.message), type: 'error' })
     }
   }
 
@@ -384,6 +409,49 @@ function AdminDashboard() {
             )}
           </div>
 
+        {/* Dataset Access Requests */}
+        <div className="card mb-6 sm:mb-8">
+          <h2 className="text-lg sm:text-xl font-semibold mb-4">Dataset Access Requests</h2>
+          {datasetRequests.length > 0 ? (
+            <div className="space-y-3 sm:space-y-4">
+              {datasetRequests.map((request) => (
+                <div key={request.id} className="border border-gray-200 rounded-lg p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2">
+                    <div className="mb-2 sm:mb-0">
+                      <h3 className="font-semibold text-sm sm:text-base">{request.researcher_name}</h3>
+                      <p className="text-xs sm:text-sm text-gray-600">{request.researcher_email}</p>
+                      <p className="text-xs text-gray-700 mt-1 font-medium">Dataset: {request.dataset_name}</p>
+                      {request.purpose && (
+                        <p className="text-xs text-gray-500 mt-1">Purpose: {request.purpose}</p>
+                      )}
+                    </div>
+                    <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full self-start">
+                      pending
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-3">Requested: {request.requested_at ? new Date(request.requested_at).toLocaleDateString() : 'N/A'}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button 
+                      onClick={() => handleApproveDataset(request.id)}
+                      className="text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium transition-colors"
+                    >
+                      Approve Access
+                    </button>
+                    <button 
+                      onClick={() => handleRejectDataset(request.id)}
+                      className="text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm">No pending dataset requests</p>
+          )}
+        </div>
+
         {/* User Details Modal */}
         {showDetailsModal && selectedUser && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={closeModal}>
@@ -583,6 +651,14 @@ function AdminDashboard() {
           </div>
         )}
       </div>
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   )
 }

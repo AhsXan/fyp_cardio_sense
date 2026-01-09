@@ -5,6 +5,9 @@ function Button({ children, variant = 'primary', className = '', disabled = fals
     primary: 'bg-primary text-white hover:bg-primary-dark focus:ring-primary',
     secondary: 'bg-white text-primary border-2 border-primary hover:bg-primary-light focus:ring-primary',
     outline: 'bg-transparent text-primary border-2 border-primary hover:bg-primary-light focus:ring-primary',
+    success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500',
+    warning: 'bg-orange-500 text-white hover:bg-orange-600 focus:ring-orange-500',
+    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
   }
   
   return (
