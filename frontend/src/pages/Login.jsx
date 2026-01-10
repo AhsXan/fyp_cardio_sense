@@ -1,3 +1,11 @@
+/**
+ * Login Page - User authentication with optional 2FA
+ * - Email and password authentication
+ * - Two-factor authentication (OTP) if enabled
+ * - Auto-logout on page visit (fresh login)
+ * - Shows forgot password link after failed attempt
+ * - Redirects to role-specific dashboard
+ */
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import Navbar from '../components/Navbar'
@@ -17,34 +25,38 @@ function Login() {
     email: '',
     password: '',
   })
-  const [errors, setErrors] = useState({})
-  const [loading, setLoading] = useState(false)
-  const [showOTP, setShowOTP] = useState(false)
-  const [tempToken, setTempToken] = useState(null)
-  const [message, setMessage] = useState(null)
-  const [loginAttempted, setLoginAttempted] = useState(false)
+  const [errors, setErrors] = useState({}) // Form validation errors
+  const [loading, setLoading] = useState(false) // Submit button state
+  const [showOTP, setShowOTP] = useState(false) // Show OTP dialog for 2FA
+  const [tempToken, setTempToken] = useState(null) // Temporary token for 2FA flow
+  const [message, setMessage] = useState(null) // Success messages from other pages
+  const [loginAttempted, setLoginAttempted] = useState(false) // Show forgot password link
 
-  // Auto-logout if user is already authenticated and visits login page
+  // Auto-logout if user is already authenticated (force fresh login)
   useEffect(() => {
     if (isAuthenticated) {
       logout()
     }
   }, [])
 
+  // Display success message from previous pages (e.g., password reset)
   useEffect(() => {
     if (location.state?.message) {
       setMessage(location.state.message)
     }
   }, [location])
 
+  // Handle input field changes
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
+    // Clear field error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: null }))
     }
   }
 
+  // Validate email and password
   const validate = () => {
     const newErrors = {}
     newErrors.email = getValidationErrors('Email', formData.email, { required: true, email: true })
@@ -54,6 +66,7 @@ function Login() {
     return !Object.values(newErrors).some(error => error !== null)
   }
 
+  // Handle login form submission
   const handleSubmit = async (e) => {
     e.preventDefault()
     
@@ -64,30 +77,34 @@ function Login() {
     try {
       const response = await authAPI.login(formData.email, formData.password)
       
+      // Check if 2FA is enabled for this user
       if (response.data.requires_otp) {
-        setTempToken(response.data.temp_token)
-        await authAPI.sendLoginOTP(response.data.temp_token)
-        setShowOTP(true)
+        setTempToken(response.data.temp_token) // Store temp token for OTP verification
+        await authAPI.sendLoginOTP(response.data.temp_token) // Request OTP
+        setShowOTP(true) // Show OTP dialog
       } else {
-        // Direct login without 2FA
+        // Save user data and tokens to global auth context
         login(response.data.user, {
           access_token: response.data.access_token,
           refresh_token: response.data.refresh_token,
         })
+        // Redirect to role-specific dashboard
         navigate(`/dashboard/${response.data.user.role}`)
       }
     } catch (error) {
       const errorMessage = error.response?.data?.detail || error.response?.data?.message || 'Login failed. Please check your credentials.'
       setErrors({ submit: errorMessage })
-      setLoginAttempted(true) // Show forgot password link after failed attempt
+      setLoginAttempted(true) // Show "Forgot password?" link after failed attempt
     } finally {
       setLoading(false)
     }
   }
 
+  // Verify OTP for 2FA
   const handleOTPVerify = async (otp) => {
     try {
       const response = await authAPI.verifyLoginOTP(tempToken, otp)
+      // OTP verified, login successful
       login(response.data.user, {
         access_token: response.data.access_token,
         refresh_token: response.data.refresh_token,
@@ -99,6 +116,7 @@ function Login() {
     }
   }
 
+  // Resend OTP for 2FA
   const handleOTPResend = async () => {
     try {
       await authAPI.sendLoginOTP(tempToken)

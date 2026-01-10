@@ -1,3 +1,9 @@
+/**
+ * Main App Component - Defines all application routes
+ * - Wraps everything in AuthProvider for global auth state
+ * - Configures protected routes with role-based access
+ * - Maps URLs to page components
+ */
 import { Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import LandingPage from './pages/LandingPage'
@@ -24,6 +30,7 @@ function App() {
   return (
     <AuthProvider>
       <Routes>
+        {/* Public Routes */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/select-role" element={<RoleSelection />} />
         <Route path="/signup/patient" element={<PatientSignup />} />
@@ -31,6 +38,8 @@ function App() {
         <Route path="/signup/researcher" element={<ResearcherSignup />} />
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        
+        {/* Protected Patient Routes */}
         <Route
           path="/dashboard/patient"
           element={
@@ -39,6 +48,8 @@ function App() {
             </ProtectedRoute>
           }
         />
+        
+        {/* Protected Doctor Routes */}
         <Route
           path="/dashboard/doctor"
           element={
@@ -47,6 +58,8 @@ function App() {
             </ProtectedRoute>
           }
         />
+        
+        {/* Protected Researcher Routes */}
         <Route
           path="/dashboard/researcher"
           element={
@@ -55,6 +68,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* Alternate researcher dashboard route */}
         <Route
           path="/researcher-dashboard"
           element={
@@ -79,6 +93,8 @@ function App() {
             </ProtectedRoute>
           }
         />
+        
+        {/* Protected Admin Routes */}
         <Route
           path="/dashboard/admin"
           element={
@@ -87,6 +103,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* Alternate admin dashboard route */}
         <Route
           path="/admin-dashboard"
           element={
@@ -111,6 +128,8 @@ function App() {
             </ProtectedRoute>
           }
         />
+        
+        {/* Shared Protected Routes (all authenticated users) */}
         <Route
           path="/upload"
           element={
@@ -119,6 +138,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* Dynamic route for viewing individual result */}
         <Route
           path="/results/:uploadId"
           element={
