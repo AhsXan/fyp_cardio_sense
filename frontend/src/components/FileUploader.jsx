@@ -1,19 +1,29 @@
+/**
+ * File Uploader Component with Drag & Drop
+ * - Drag and drop or click to upload
+ * - File type and size validation
+ * - Visual feedback for drag state
+ * - Used for PCG audio file uploads
+ */
 import { useState, useRef } from 'react'
 
 function FileUploader({ onFileSelect, accept = '.wav,.mp3', maxSizeMB = 10, disabled = false }) {
-  const [isDragging, setIsDragging] = useState(false)
-  const [error, setError] = useState('')
-  const fileInputRef = useRef(null)
+  const [isDragging, setIsDragging] = useState(false) // Visual feedback during drag
+  const [error, setError] = useState('') // Validation errors
+  const fileInputRef = useRef(null) // Hidden file input reference
 
+  // Validate file type and size
   const validateFile = (file) => {
     const validTypes = accept.split(',').map(type => type.trim())
     const fileExtension = '.' + file.name.split('.').pop().toLowerCase()
     
+    // Check file extension
     if (!validTypes.some(type => fileExtension === type.toLowerCase())) {
       setError(`Invalid file type. Please upload ${accept} files only.`)
       return false
     }
 
+    // Check file size
     const maxSizeBytes = maxSizeMB * 1024 * 1024
     if (file.size > maxSizeBytes) {
       setError(`File size exceeds ${maxSizeMB}MB limit.`)
@@ -24,12 +34,14 @@ function FileUploader({ onFileSelect, accept = '.wav,.mp3', maxSizeMB = 10, disa
     return true
   }
 
+  // Process valid file
   const handleFile = (file) => {
     if (validateFile(file)) {
       onFileSelect(file)
     }
   }
 
+  // Drag and drop event handlers
   const handleDragOver = (e) => {
     e.preventDefault()
     if (!disabled) setIsDragging(true)
@@ -46,12 +58,14 @@ function FileUploader({ onFileSelect, accept = '.wav,.mp3', maxSizeMB = 10, disa
     
     if (disabled) return
     
+    // Get first file from drop
     const file = e.dataTransfer.files[0]
     if (file) {
       handleFile(file)
     }
   }
 
+  // File input change handler
   const handleFileInput = (e) => {
     const file = e.target.files[0]
     if (file) {
@@ -59,6 +73,7 @@ function FileUploader({ onFileSelect, accept = '.wav,.mp3', maxSizeMB = 10, disa
     }
   }
 
+  // Trigger hidden file input on click
   const handleClick = () => {
     if (!disabled) {
       fileInputRef.current?.click()
@@ -67,6 +82,7 @@ function FileUploader({ onFileSelect, accept = '.wav,.mp3', maxSizeMB = 10, disa
 
   return (
     <div>
+      {/* Drop zone with click handler */}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -86,6 +102,7 @@ function FileUploader({ onFileSelect, accept = '.wav,.mp3', maxSizeMB = 10, disa
           className="hidden"
           disabled={disabled}
         />
+        {/* Upload icon SVG */}
         <svg
           className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-gray-400 mb-3 sm:mb-4"
           stroke="currentColor"
@@ -100,6 +117,7 @@ function FileUploader({ onFileSelect, accept = '.wav,.mp3', maxSizeMB = 10, disa
             strokeLinejoin="round"
           />
         </svg>
+        {/* Instructions text */}
         <p className="text-gray-600 mb-1 text-sm sm:text-base">
           <span className="text-primary font-medium">Click to upload</span> or drag and drop
         </p>
@@ -107,6 +125,7 @@ function FileUploader({ onFileSelect, accept = '.wav,.mp3', maxSizeMB = 10, disa
           {accept.toUpperCase()} files up to {maxSizeMB}MB
         </p>
       </div>
+      {/* Error message display */}
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
     </div>
   )

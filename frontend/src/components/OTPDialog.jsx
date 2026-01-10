@@ -1,11 +1,19 @@
+/**
+ * OTP Verification Dialog Component
+ * - 6-digit OTP input with auto-focus
+ * - Paste support for convenience
+ * - Resend countdown timer (60s)
+ * - Used in signup and login flows
+ */
 import { useState, useEffect, useRef } from 'react'
 import Button from './Button'
 
 function OTPDialog({ isOpen, onClose, onVerify, onResend, email }) {
-  const [otp, setOtp] = useState(['', '', '', '', '', ''])
-  const [countdown, setCountdown] = useState(0)
-  const inputRefs = useRef([])
+  const [otp, setOtp] = useState(['', '', '', '', '', '']) // 6 separate digits
+  const [countdown, setCountdown] = useState(0) // Resend timer
+  const inputRefs = useRef([]) // Refs for auto-focus between inputs
 
+  // Reset state when dialog opens
   useEffect(() => {
     if (isOpen) {
       setOtp(['', '', '', '', '', ''])
@@ -14,6 +22,7 @@ function OTPDialog({ isOpen, onClose, onVerify, onResend, email }) {
     }
   }, [isOpen])
 
+  // Countdown timer for resend button
   useEffect(() => {
     if (countdown > 0) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
@@ -21,37 +30,42 @@ function OTPDialog({ isOpen, onClose, onVerify, onResend, email }) {
     }
   }, [countdown])
 
+  // Handle single digit input - auto-focus next input
   const handleChange = (index, value) => {
-    if (!/^\d*$/.test(value)) return
+    if (!/^\d*$/.test(value)) return // Only allow digits
     
     const newOtp = [...otp]
-    newOtp[index] = value.slice(-1)
+    newOtp[index] = value.slice(-1) // Take only last character
     setOtp(newOtp)
 
+    // Auto-focus next input if digit entered
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus()
     }
   }
 
+  // Handle backspace - move to previous input if current is empty
   const handleKeyDown = (index, e) => {
     if (e.key === 'Backspace' && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus()
     }
   }
 
+  // Handle paste - fill all 6 inputs at once
   const handlePaste = (e) => {
     e.preventDefault()
     const pastedData = e.clipboardData.getData('text').slice(0, 6)
     if (/^\d+$/.test(pastedData)) {
       const newOtp = [...otp]
       for (let i = 0; i < 6; i++) {
-        newOtp[i] = pastedData[i] || ''
+        newOtp[i] = pastedData[i] || '' // Fill each digit
       }
       setOtp(newOtp)
       inputRefs.current[5]?.focus()
     }
   }
 
+  // Send OTP to backend for verification
   const handleVerify = () => {
     const otpString = otp.join('')
     if (otpString.length === 6) {
@@ -59,6 +73,7 @@ function OTPDialog({ isOpen, onClose, onVerify, onResend, email }) {
     }
   }
 
+  // Resend OTP (only if countdown finished)
   const handleResend = () => {
     if (countdown === 0) {
       setCountdown(60)
@@ -70,6 +85,7 @@ function OTPDialog({ isOpen, onClose, onVerify, onResend, email }) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      {/* Dialog box - stop propagation to prevent closing when clicking inside */}
       <div className="bg-white rounded-lg p-4 sm:p-6 md:p-8 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Verify Your Email</h2>
         <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">

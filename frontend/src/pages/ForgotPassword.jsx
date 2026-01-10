@@ -1,3 +1,11 @@
+/**
+ * Forgot Password Page - Two-step password reset process
+ * Step 1: Enter email to receive OTP
+ * Step 2: Enter OTP + new password to reset
+ * - OTP sent to backend terminal (user preference)
+ * - Shows password requirements
+ * - Validates password strength
+ */
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
@@ -9,27 +17,30 @@ import { getValidationErrors } from '../utils/validation'
 function ForgotPassword() {
   const navigate = useNavigate()
   
-  const [step, setStep] = useState(1) // 1: Email, 2: OTP + New Password
+  const [step, setStep] = useState(1) // Step 1: Email, Step 2: OTP + New Password
   const [formData, setFormData] = useState({
     email: '',
     otp: '',
     newPassword: '',
     confirmPassword: '',
   })
-  const [errors, setErrors] = useState({})
-  const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState(null)
-  const [otpSent, setOtpSent] = useState(false)
+  const [errors, setErrors] = useState({}) // Field-specific errors
+  const [loading, setLoading] = useState(false) // Submit button loading state
+  const [message, setMessage] = useState(null) // Success/error messages
+  const [otpSent, setOtpSent] = useState(false) // Track if OTP was sent
 
+  // Handle input changes and clear errors
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
+    // Clear error for this field when user starts typing
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: null }))
     }
     if (message) setMessage(null)
   }
 
+  // Validate email format (Step 1)
   const validateEmail = () => {
     const newErrors = {}
     newErrors.email = getValidationErrors('Email', formData.email, { required: true, email: true })
@@ -37,11 +48,15 @@ function ForgotPassword() {
     return !Object.values(newErrors).some(error => error !== null)
   }
 
+  // Validate OTP and password (Step 2)
   const validateReset = () => {
     const newErrors = {}
+    // Validate OTP (6 digits)
     newErrors.otp = getValidationErrors('OTP', formData.otp, { required: true, minLength: 6, maxLength: 6 })
+    // Validate password strength
     newErrors.newPassword = getValidationErrors('New Password', formData.newPassword, { required: true, minLength: 8, password: true })
     
+    // Check if passwords match
     if (formData.confirmPassword !== formData.newPassword) {
       newErrors.confirmPassword = 'Passwords do not match'
     }
@@ -50,6 +65,7 @@ function ForgotPassword() {
     return !Object.values(newErrors).some(error => error !== null)
   }
 
+  // Step 1: Send OTP to user's email (prints to backend terminal)
   const handleSendOTP = async (e) => {
     e.preventDefault()
     
@@ -60,7 +76,7 @@ function ForgotPassword() {
     try {
       await authAPI.forgotPassword(formData.email)
       setOtpSent(true)
-      setStep(2)
+      setStep(2) // Move to step 2
       setMessage({
         type: 'success',
         text: '✅ OTP sent! Check the backend terminal for your OTP code.'
@@ -73,6 +89,7 @@ function ForgotPassword() {
     }
   }
 
+  // Step 2: Reset password with OTP
   const handleResetPassword = async (e) => {
     e.preventDefault()
     
@@ -86,6 +103,7 @@ function ForgotPassword() {
         type: 'success',
         text: '✅ Password reset successful! Redirecting to login...'
       })
+      // Redirect to login after 2 seconds
       setTimeout(() => {
         navigate('/login', { 
           state: { message: 'Password reset successful. Please login with your new password.' } 
@@ -99,11 +117,12 @@ function ForgotPassword() {
     }
   }
 
+  // Resend OTP if user didn't receive it
   const handleResendOTP = async () => {
     setLoading(true)
     setMessage(null)
     try {
-      await authAPI.forgotPassword(formData.email)
+      await authAPI.forgotPassword(formData.email) // Request new OTP
       setMessage({
         type: 'success',
         text: '✅ OTP resent! Check the backend terminal for your new OTP code.'

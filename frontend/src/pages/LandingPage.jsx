@@ -1,3 +1,12 @@
+/**
+ * Landing Page - Public homepage for Cardio Sense
+ * - Hero section with call-to-action
+ * - Diagnostic capabilities showcase
+ * - Why choose us section
+ * - Customer testimonials
+ * - Company vision and mission
+ * - Auto-logout on visit (ensures fresh signup/login)
+ */
 import { Link, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
@@ -9,20 +18,20 @@ function LandingPage() {
   const { logout, isAuthenticated } = useAuth()
   const location = useLocation()
 
-  // Auto-logout if user is already authenticated and visits landing page
+  // Auto-logout if user is already authenticated (force fresh session)
   useEffect(() => {
     if (isAuthenticated) {
       logout()
     }
   }, [])
 
-  // Handle scroll to section when navigating from another page
+  // Handle smooth scroll to section when navigating from another page
   useEffect(() => {
     if (location.state?.scrollTo) {
       const sectionId = location.state.scrollTo
       const element = document.getElementById(sectionId)
       if (element) {
-        // Use a short delay to ensure the page has rendered
+        // Delay to ensure page has rendered before scrolling
         const timeoutId = setTimeout(() => {
           element.scrollIntoView({ behavior: 'smooth' })
         }, 100)
@@ -34,13 +43,15 @@ function LandingPage() {
     <div className="min-h-screen flex flex-col">
       <Navbar isPublic />
       
-      {/* Hero Section */}
+      {/* === HERO SECTION === */}
       <section className="bg-gradient-to-br from-primary-dark via-primary-dark to-primary py-12 sm:py-16 md:py-20 lg:py-28 text-white relative overflow-hidden">
+        {/* Background pattern */}
         <div className="absolute inset-0 opacity-20" style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
         }}></div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center">
+            {/* Left: Main headline and CTA */}
             <div className="space-y-4 sm:space-y-6 text-center md:text-left">
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-tight">
                 Prioritizing Your Cardiac Health with Precision
@@ -55,6 +66,7 @@ function LandingPage() {
                 </Button>
               </Link>
             </div>
+            {/* Right: Logo with glass effect */}
             <div className="flex justify-center items-center mt-8 md:mt-0">
               <div className="relative">
                 <div className="absolute inset-0 bg-white/10 rounded-3xl blur-2xl"></div>
@@ -68,6 +80,7 @@ function LandingPage() {
               </div>
             </div>
           </div>
+          {/* Feature highlights */}
           <div className="mt-8 sm:mt-12 bg-[#3699F7] rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 shadow-lg">
             <span className="text-white font-semibold text-base sm:text-lg">Instant Report</span>
             <div className="hidden sm:block h-8 w-px bg-white/50"></div>
@@ -76,7 +89,7 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* Diagnostic Capabilities */}
+      {/* === DIAGNOSTIC CAPABILITIES SECTION === */}
       <section id="capabilities" className="py-12 sm:py-16 md:py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10 sm:mb-12 md:mb-16">
@@ -85,6 +98,7 @@ function LandingPage() {
               Comprehensive cardiac health analysis powered by advanced AI technology
             </p>
           </div>
+          {/* Grid of capability cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
             {[
               {
@@ -138,7 +152,7 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* Why Choose Us */}
+      {/* === WHY CHOOSE US SECTION === */}
       <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-b from-gray-50 to-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 md:gap-16 items-center">
@@ -181,7 +195,7 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* Testimonials */}
+      {/* === TESTIMONIALS SECTION === */}
       <section className="py-12 sm:py-16 md:py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10 sm:mb-12 md:mb-16">
@@ -217,7 +231,7 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* Future of Health */}
+      {/* === FUTURE OF HEALTH / OUR VISION === */}
       <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-b from-white to-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 md:gap-16 items-center">

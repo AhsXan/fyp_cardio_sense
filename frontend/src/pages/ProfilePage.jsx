@@ -1,3 +1,10 @@
+/**
+ * Profile Page - User profile management
+ * - View and edit personal information
+ * - Role-specific fields (patient/doctor/researcher)
+ * - Verification status display
+ * - Edit mode with save/cancel actions
+ */
 import { useState, useEffect } from 'react'
 import Navbar from '../components/Navbar'
 import Input from '../components/Input'
@@ -7,8 +14,8 @@ import { userAPI } from '../services/api'
 
 function ProfilePage() {
   const { user } = useAuth()
-  const [editing, setEditing] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [editing, setEditing] = useState(false) // Edit mode toggle
+  const [loading, setLoading] = useState(false) // Save button state
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -17,16 +24,18 @@ function ProfilePage() {
     ...(user?.role === 'doctor' && { pmc_registration_number: '', qualifications: '', specialty: '', affiliation: '', clinic_address: '' }),
     ...(user?.role === 'researcher' && { institution: '', department: '', research_field: '', research_id_or_orcid: '' }),
   })
+  // Track verification status for email, phone, documents
   const [verificationStatus, setVerificationStatus] = useState({
     email: false,
     phone: false,
     documents: false,
   })
 
+  // Load user data on component mount
   useEffect(() => {
     if (user) {
       setFormData(prev => ({ ...prev, ...user }))
-      // Mock verification status
+      // Set verification status from user data
       setVerificationStatus({
         email: user.email_verified || false,
         phone: user.phone_verified || false,
@@ -35,16 +44,18 @@ function ProfilePage() {
     }
   }, [user])
 
+  // Handle form field changes
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
+  // Save profile changes to backend
   const handleSave = async () => {
     setLoading(true)
     try {
       await userAPI.updateProfile(formData)
-      setEditing(false)
+      setEditing(false) // Exit edit mode
       alert('Profile updated successfully!')
     } catch (error) {
       alert(error.response?.data?.message || 'Failed to update profile')
