@@ -1,3 +1,10 @@
+/**
+ * Reusable Input Component
+ * - Supports text, email, password, number, etc.
+ * - Password visibility toggle (eye icon)
+ * - Error message display
+ * - Required field indicator (*)
+ */
 import { useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 
@@ -7,6 +14,7 @@ function Input({ label, error, required = false, className = '', type, ...props 
 
   return (
     <div className="mb-4">
+      {/* Label with required indicator */}
       {label && (
         <label className="block text-sm font-medium text-gray-700 mb-1">
           {label}
@@ -14,11 +22,13 @@ function Input({ label, error, required = false, className = '', type, ...props 
         </label>
       )}
       <div className="relative">
+        {/* Input field - shows text if password toggle is on */}
         <input
           className={`input-field ${error ? 'border-red-500 focus:ring-red-500' : ''} ${className} ${isPassword ? 'pr-10' : ''}`}
           type={isPassword && showPassword ? 'text' : type}
           {...props}
         />
+        {/* Password visibility toggle button */}
         {isPassword && (
           <button
             type="button"
@@ -34,6 +44,7 @@ function Input({ label, error, required = false, className = '', type, ...props 
           </button>
         )}
       </div>
+      {/* Error message display */}
       {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
     </div>
   )

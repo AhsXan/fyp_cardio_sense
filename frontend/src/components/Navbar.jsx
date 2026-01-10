@@ -1,3 +1,10 @@
+/**
+ * Navigation Bar Component
+ * - Shows different links for public vs authenticated users
+ * - Mobile-responsive with hamburger menu
+ * - Role-based navigation (patient/doctor/researcher/admin)
+ * - Smooth scrolling to page sections
+ */
 import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
@@ -6,22 +13,26 @@ function Navbar({ isPublic = false }) {
   const { isAuthenticated, user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false) // Mobile menu state
 
+  // Handle logout and redirect to home
   const handleLogout = () => {
     logout()
     navigate('/')
     setMobileMenuOpen(false)
   }
 
+  // Close mobile menu (used after navigation)
   const closeMobileMenu = () => {
     setMobileMenuOpen(false)
   }
 
+  // Smooth scroll to section (for landing page)
   const scrollToSection = (e, sectionId) => {
     e.preventDefault()
     setMobileMenuOpen(false)
     
+    // If already on landing page, scroll directly
     if (location.pathname === '/') {
       const element = document.getElementById(sectionId)
       if (element) {
@@ -36,7 +47,7 @@ function Navbar({ isPublic = false }) {
     <nav className="bg-white shadow-md relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Logo */}
+          {/* Logo and Brand Name */}
           <div className="flex items-center flex-shrink-0">
             <Link to="/" className="flex items-center space-x-2">
               <img src="/website-logo.png" alt="Cardio-Sense" className="h-8 w-8" />
@@ -44,8 +55,9 @@ function Navbar({ isPublic = false }) {
             </Link>
           </div>
           
-          {/* Desktop Navigation */}
+          {/* Desktop Navigation Links */}
           <div className="hidden md:flex items-center space-x-2 lg:space-x-4">
+            {/* Public navigation (not logged in) */}
             {isPublic && !isAuthenticated ? (
               <>
                 <Link to="/" className="text-gray-700 hover:text-primary px-3 py-2 text-sm lg:text-base transition-colors">Home</Link>
@@ -55,6 +67,7 @@ function Navbar({ isPublic = false }) {
                 <Link to="/select-role" className="btn-primary text-sm lg:text-base">Sign up</Link>
               </>
             ) : isAuthenticated ? (
+              /* Authenticated navigation */
               <>
                 <Link to={`/dashboard/${user?.role}`} className="text-gray-700 hover:text-primary px-3 py-2 text-sm lg:text-base transition-colors">
                   Dashboard
@@ -72,7 +85,7 @@ function Navbar({ isPublic = false }) {
             ) : null}
           </div>
 
-          {/* Mobile menu button */}
+          {/* Mobile Menu Toggle Button (hamburger) */}
           <div className="md:hidden">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -80,6 +93,7 @@ function Navbar({ isPublic = false }) {
               aria-expanded={mobileMenuOpen}
               aria-label="Toggle navigation menu"
             >
+              {/* Toggle between X and hamburger icon */}
               {mobileMenuOpen ? (
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -94,7 +108,7 @@ function Navbar({ isPublic = false }) {
         </div>
       </div>
 
-      {/* Mobile menu */}
+      {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
         <div className="md:hidden absolute top-16 left-0 right-0 bg-white shadow-lg border-t border-gray-100 z-50">
           <div className="px-2 pt-2 pb-3 space-y-1">

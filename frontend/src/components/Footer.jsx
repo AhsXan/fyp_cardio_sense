@@ -1,18 +1,28 @@
+/**
+ * Footer Component
+ * - Company information and mission
+ * - Social media links
+ * - Useful links navigation
+ * - Smooth scrolling to landing page sections
+ */
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 
 function Footer() {
   const navigate = useNavigate()
   const location = useLocation()
 
+  // Smooth scroll to section or navigate to landing page first
   const scrollToSection = (e, sectionId) => {
     e.preventDefault()
     
+    // If on landing page, scroll directly
     if (location.pathname === '/') {
       const element = document.getElementById(sectionId)
       if (element) {
         element.scrollIntoView({ behavior: 'smooth' })
       }
     } else {
+      // Navigate to landing page then scroll
       navigate('/', { state: { scrollTo: sectionId } })
     }
   }
@@ -21,6 +31,7 @@ function Footer() {
     <footer id="footer" className="bg-primary-dark text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
+          {/* Company info and mission */}
           <div>
             <div className="flex items-center space-x-2 mb-4">
               <img src="/website-logo.png" alt="Cardio-Sense" className="h-8 w-8" />
@@ -30,6 +41,7 @@ function Footer() {
               Transforming heart health through AI and deep learning models. 
               Our mission is to make cardiac diagnostics accessible, accurate, and timely.
             </p>
+            {/* Social media links */}
             <div className="flex space-x-4 mt-4">
               <a href="#" className="text-gray-300 hover:text-white transition-colors" aria-label="Facebook">
                 <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -55,6 +67,7 @@ function Footer() {
             </div>
           </div>
           
+          {/* Useful links section */}
           <div>
             <h3 className="text-base sm:text-lg font-semibold mb-4">Useful Links</h3>
             <ul className="space-y-2 text-gray-300 text-sm">
@@ -66,6 +79,7 @@ function Footer() {
           </div>
         </div>
         
+        {/* Copyright notice */}
         <div className="border-t border-gray-700 mt-6 sm:mt-8 pt-6 sm:pt-8 text-center text-gray-300 text-xs sm:text-sm">
           <p>©2025 All Right Reserved.</p>
         </div>

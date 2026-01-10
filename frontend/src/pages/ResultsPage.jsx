@@ -1,3 +1,13 @@
+/**
+ * Results Page - Display AI analysis results for heart sound upload
+ * - AI classification (NORMAL/ABNORMAL) with confidence
+ * - Probability breakdown and processing details
+ * - Doctor's review section (if reviewed)
+ * - Researcher suggestions (if any)
+ * - Waveform visualization
+ * - PDF report download
+ * - Doctor comment functionality (for doctors only)
+ */
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
@@ -6,25 +16,28 @@ import { pcgAPI, doctorAPI } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 
 function ResultsPage() {
-  const { uploadId } = useParams()
+  const { uploadId } = useParams() // Get upload ID from URL
   const navigate = useNavigate()
   const { user } = useAuth()
-  const [results, setResults] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [comments, setComments] = useState('')
-  const [savingComments, setSavingComments] = useState(false)
+  const [results, setResults] = useState(null) // AI analysis results
+  const [loading, setLoading] = useState(true) // Page loading state
+  const [error, setError] = useState('') // Error messages
+  const [comments, setComments] = useState('') // Doctor comments
+  const [savingComments, setSavingComments] = useState(false) // Save comments button state
   
-  const isDoctor = user?.role === 'doctor'
+  const isDoctor = user?.role === 'doctor' // Check if current user is a doctor
 
+  // Fetch results on component mount
   useEffect(() => {
     fetchResults()
   }, [uploadId])
 
+  // Fetch analysis results from backend
   const fetchResults = async () => {
     try {
       const response = await pcgAPI.getResults(uploadId)
       setResults(response.data)
+      // Pre-fill comments if doctor already commented
       if (response.data.doctor_comments) {
         setComments(response.data.doctor_comments)
       }
@@ -35,6 +48,7 @@ function ResultsPage() {
     }
   }
 
+  // Save doctor's comments (doctors only)
   const handleSaveComments = async () => {
     if (!comments.trim()) {
       alert('Please enter a comment before saving.')
@@ -54,19 +68,20 @@ function ResultsPage() {
     }
   }
 
+  // Download PDF report
   const handleDownloadReport = async () => {
     try {
       const response = await pcgAPI.downloadReport(uploadId)
-      // Create blob from response
+      // Create blob from binary data
       const blob = new Blob([response.data], { type: 'application/pdf' })
-      // Create download link
+      // Create temporary download link
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
       link.download = `CardioSense_Report_${uploadId}_${new Date().toISOString().split('T')[0]}.pdf`
       document.body.appendChild(link)
-      link.click()
-      // Cleanup
+      link.click() // Trigger download
+      // Cleanup temporary elements
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
     } catch (err) {
