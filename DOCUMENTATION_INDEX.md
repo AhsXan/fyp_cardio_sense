@@ -177,7 +177,6 @@ Use this before starting development:
 ---
 
 ## 🔐 Credentials
-
 ### Development Environment
 
 **Admin Account:**
