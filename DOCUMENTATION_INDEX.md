@@ -158,7 +158,6 @@ Use this before starting development:
 - [ ] Frontend runs: `npm run dev`
 - [ ] Can access http://localhost:3000
 - [ ] Can login with admin@cardiosense.com
-
 ---
 
 ## 🔑 Key Files Reference
