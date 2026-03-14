@@ -174,7 +174,6 @@ Use this before starting development:
 | main.py | FastAPI app | backend/app/ |
 | vite.config.js | Frontend config | frontend/ |
 | tailwind.config.cjs | Tailwind setup | frontend/ |
-
 ---
 
 ## 🔐 Credentials
