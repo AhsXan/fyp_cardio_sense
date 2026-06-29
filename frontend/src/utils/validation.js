@@ -14,7 +14,7 @@ export const validateEmail = (email) => {
 // Validate phone in E.164 format: +[country code][number]
 export const validatePhone = (phone) => {
   // E.164 format: +[country code][number]
-  const re = /^\+[1-9]\d{1,14}$/
+  const re = /^\+[1-9]\d{9,14}$/
   return re.test(phone)
 }
 

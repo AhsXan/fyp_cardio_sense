@@ -97,7 +97,6 @@ function FileUploader({ onFileSelect, accept = '.wav,.mp3', maxSizeMB = 10, disa
         <input
           ref={fileInputRef}
           type="file"
-          accept={accept}
           onChange={handleFileInput}
           className="hidden"
           disabled={disabled}
