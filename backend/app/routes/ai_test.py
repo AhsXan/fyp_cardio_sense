@@ -40,43 +40,21 @@ async def test_predict_heart_sound(
     **Admin only** - For testing AI model integration
     """
     
-    # Validate file type
-    if not audio_file.filename.lower().endswith('.wav'):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only WAV audio files are supported"
-        )
+    # Previous TensorFlow inference only supported WAV files:
+    # if not audio_file.filename.lower().endswith('.wav'):
+    #     raise HTTPException(
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #         detail="Only WAV audio files are supported"
+    #     )
+    #
+    # The EC2 fallback accepts any uploaded audio file and returns a stable
+    # demo result with the same response shape as the real model.
     
     # Create temporary file to save upload
     temp_file_path = None
     
     try:
-        # Lazy import AI service
-        try:
-            from app.services.ai_service import get_classifier
-        except Exception as import_error:
-            error_msg = str(import_error)
-            print(f"❌ AI service import failed: {error_msg}")
-            
-            # Check if it's the common Windows DLL error
-            if "DLL load failed" in error_msg or "DLL initialization" in error_msg:
-                detail_msg = (
-                    "TensorFlow DLL initialization failed on Windows. "
-                    "This is a common issue. To fix it:\n\n"
-                    "Option 1 (Recommended): Install Microsoft Visual C++ Redistributable\n"
-                    "   Download: https://aka.ms/vs/16/release/vc_redist.x64.exe\n\n"
-                    "Option 2: Use tensorflow-cpu instead\n"
-                    "   Run: pip uninstall tensorflow && pip install tensorflow-cpu==2.15.0\n\n"
-                    "Option 3: Test the model directly via Python script (see backend/test_ai_with_audio.py)\n\n"
-                    f"Technical details: {error_msg[:200]}"
-                )
-            else:
-                detail_msg = f"AI service unavailable: {error_msg}. Please ensure TensorFlow is properly installed."
-            
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=detail_msg
-            )
+        from app.services.ai_service import get_classifier
         
         # Save uploaded file temporarily
         with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_file:

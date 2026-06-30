@@ -134,8 +134,12 @@ async def upload_pcg(
     
     print(f"   File path for AI: {abs_file_path}")
     
-    # Check if file exists and is a WAV file for AI analysis
-    if os.path.exists(abs_file_path) and file.filename.lower().endswith('.wav'):
+    # Previous TensorFlow inference only supported WAV files:
+    # if os.path.exists(abs_file_path) and file.filename.lower().endswith('.wav'):
+    #
+    # The lightweight EC2 fallback does not read the audio file, but we still
+    # check that the upload was saved before returning a demo analysis result.
+    if os.path.exists(abs_file_path):
         try:
             ai_result = run_ai_analysis(abs_file_path)
             if ai_result:
@@ -143,7 +147,7 @@ async def upload_pcg(
         except Exception as e:
             print(f"   ⚠️ AI Analysis error: {str(e)}")
     else:
-        print(f"   ⚠️ File not found or not WAV format, skipping AI analysis")
+        print(f"   ⚠️ File not found, skipping AI analysis")
     
     processing_time = time.time() - start_time
     
@@ -156,7 +160,7 @@ async def upload_pcg(
             probability_normal=ai_result['probabilities']['normal'],
             probability_abnormal=ai_result['probabilities']['abnormal'],
             average_confidence=ai_result['confidence'],
-            model_version="hybrid_cnn_lstm_v1.0",
+            model_version=ai_result.get("mode", "fallback"),
             processing_time_seconds=processing_time
         )
         pcg_upload.status = UploadStatus.COMPLETED
